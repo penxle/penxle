@@ -8,6 +8,8 @@
   export let updateAttributes: NodeViewProps['updateAttributes'];
 
   export let deletable = false;
+  let _class: string | undefined = undefined;
+  export { _class as class };
 
   const removeImage = async (id: string) => {
     await updateAttributes((attrs) => ({
@@ -26,6 +28,7 @@
     node.attrs.layout === 'grid' && node.attrs.gridColumns === 2 && 'grid-cols-2',
     node.attrs.layout === 'grid' && node.attrs.gridColumns === 3 && 'grid-cols-3',
     node.attrs.spacing && 'gap-1.5',
+    _class,
   )}
 >
   {#if node.attrs.layout === 'slide'}
