@@ -1,5 +1,6 @@
 <script lang="ts">
   import clsx from 'clsx';
+  import { portal, scrollLock } from '$lib/svelte/actions';
   import { NodeView } from '$lib/tiptap';
   import { TiptapNodeViewBubbleMenu } from '$lib/tiptap/components';
   import Display from './Display.svelte';
@@ -18,6 +19,7 @@
 
   let open = node.attrs.layout === 'initial';
   let onClose: (() => void) | null;
+  let viewerOpen = false;
 
   const handleClose = () => {
     if (node.attrs.layout !== 'initial' && node.attrs.__data.length === 0) {
@@ -61,8 +63,15 @@
       selected && 'ring-2 ring-teal-500',
     )}
   >
-    <div class={clsx(editor?.isEditable && 'pointer-events-none')}>
+    <div class={clsx(editor?.isEditable && 'pointer-events-none', !editor?.isEditable && 'relative')}>
       <Display {node} {updateAttributes} />
+      <button
+        class="p-1 bg-gray-950/40 rounded-sm absolute top-3.5 right-3.5 z-2"
+        type="button"
+        on:click={() => (viewerOpen = true)}
+      >
+        <i class="i-tb-arrows-maximize text-white square-4.5 block" />
+      </button>
     </div>
   </div>
 </NodeView>
@@ -166,4 +175,18 @@
   </TiptapNodeViewBubbleMenu>
 
   <Editor {node} {updateAttributes} bind:open />
+{/if}
+
+{#if viewerOpen}
+  <div class="fixed inset-0 z-999 flex center" role="presentation" use:portal use:scrollLock>
+    <div class="fixed inset-0 bg-gray-950" />
+    <button
+      class="i-tb-x square-5 text-white absolute top-6 right-6 z-999 <sm:square-6"
+      type="button"
+      on:click={() => (viewerOpen = false)}
+    />
+    <div class="flex center sm:mx-20 overflow-auto">
+      <Display class="max-h-full max-w-full overflow-auto" {node} {updateAttributes} />
+    </div>
+  </div>
 {/if}
