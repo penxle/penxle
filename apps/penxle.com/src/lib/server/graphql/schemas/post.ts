@@ -89,15 +89,31 @@ export const postSchema = defineSchema((builder) => {
 
       member: t.relation('member', { nullable: true }),
       space: t.relation('space', { nullable: true }),
-      likeCount: t.relationCount('likes'),
+      likeCount: t.int({
+        select: {
+          _count: {
+            select: { likes: true },
+          },
+        },
+        resolve: (post) => {
+          if (post.discloseStats) {
+            return post._count?.likes ?? 0;
+          }
+          return 0;
+        },
+      }),
 
       viewCount: t.int({
-        resolve: (post, _, { db }) =>
-          useCache(
-            `Post:${post.id}:viewCount`,
-            () => db.postView.count({ where: { postId: post.id } }),
-            365 * 24 * 60 * 60,
-          ),
+        resolve: async (post, _, { db }) => {
+          if (post.discloseStats) {
+            return useCache(
+              `Post:${post.id}:viewCount`,
+              () => db.postView.count({ where: { postId: post.id } }),
+              365 * 24 * 60 * 60,
+            );
+          }
+          return 0;
+        },
       }),
 
       visibility: t.expose('visibility', { type: PrismaEnums.PostVisibility }),
