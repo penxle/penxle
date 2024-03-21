@@ -6,7 +6,7 @@
   import { goto } from '$app/navigation';
   import { fragment, graphql } from '$glitch';
   import { mixpanel } from '$lib/analytics';
-  import { Badge, Button, Icon, Modal } from '$lib/components';
+  import { Button, Chip, Icon, Modal } from '$lib/components';
   import { toast } from '$lib/notification';
   import { css, cx } from '$styled-system/css';
   import { flex } from '$styled-system/patterns';
@@ -120,7 +120,7 @@
         </button>
         {#if _post.id === $post.id}
           <div class={css({ flex: 'none', marginBottom: '4px' })}>
-            <Badge color="green">현재 포스트</Badge>
+            <Chip color="grass">현재 포스트</Chip>
           </div>
         {/if}
       </li>

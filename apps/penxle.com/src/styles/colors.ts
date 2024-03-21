@@ -56,28 +56,4 @@ export const colors = defineTokens.colors({
   green: {
     800: { value: '#04B014' },
   },
-
-  grass: {
-    50: { value: '#E9F9EE' },
-    200: { value: '#DDF3E4' },
-    600: { value: '#18794E' },
-  },
-
-  blue: {
-    50: { value: '#F0F4FF' },
-    200: { value: '#D9E2FC' },
-    600: { value: '#3451B2' },
-  },
-
-  violet: {
-    50: { value: '#F5F2FF' },
-    200: { value: '#EDE9FE' },
-    600: { value: '#5746AF' },
-  },
-
-  pink: {
-    50: { value: '#FEEFF6' },
-    200: { value: '#FCE5F3' },
-    600: { value: '#CD1D8D' },
-  },
 });

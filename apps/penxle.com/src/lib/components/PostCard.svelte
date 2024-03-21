@@ -6,7 +6,7 @@
   import IconDotsVertical from '~icons/tabler/dots-vertical';
   import { fragment, graphql } from '$glitch';
   import { mixpanel } from '$lib/analytics';
-  import { Avatar, Badge, Icon, Image, Tag } from '$lib/components';
+  import { Avatar, Chip, Icon, Image, Tag } from '$lib/components';
   import { toast } from '$lib/notification';
   import { css } from '$styled-system/css';
   import { center, flex } from '$styled-system/patterns';
@@ -200,16 +200,16 @@
   <a class={css({ paddingX: '24px', paddingTop: '16px' })} href={`/${$post.space.slug}/${$post.permalink}`}>
     <div class={flex({ flexWrap: 'wrap', gap: '4px' })}>
       {#if $post.publishedRevision.price}
-        <Badge style={css.raw({ marginBottom: '4px', width: 'fit' })} color="purple">유료</Badge>
+        <Chip style={css.raw({ marginBottom: '4px', width: 'fit' })} color="blue">유료</Chip>
       {/if}
       {#if $post.ageRating === 'R19'}
-        <Badge style={css.raw({ marginBottom: '4px', width: 'fit' })} color="red">성인물</Badge>
+        <Chip style={css.raw({ marginBottom: '4px', width: 'fit' })} color="pink">성인물</Chip>
       {/if}
       {#if triggerTags.length > 0}
-        <Badge style={css.raw({ marginBottom: '4px', width: 'fit' })} color="orange">트리거 주의</Badge>
+        <Chip style={css.raw({ marginBottom: '4px', width: 'fit' })} color="violet">트리거</Chip>
       {/if}
       {#if $post.hasPassword}
-        <Badge style={css.raw({ marginBottom: '4px', width: 'fit' })} color="gray">비밀글</Badge>
+        <Chip style={css.raw({ marginBottom: '4px', width: 'fit' })} color="gray">비밀글</Chip>
       {/if}
     </div>
     <h2

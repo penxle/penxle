@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getContext } from 'svelte';
   import { page } from '$app/stores';
-  import { css, cva } from '$styled-system/css';
+  import { css } from '$styled-system/css';
   import type { Writable } from 'svelte/store';
   import type { SystemStyleObject } from '$styled-system/types';
 
@@ -11,7 +11,6 @@
 
   export let style: SystemStyleObject | undefined = undefined;
 
-  let variant = getContext<Writable<'primary' | 'secondary'>>('variant');
   let search = getContext<Writable<string | undefined>>('search');
 
   let element: 'a' | 'button';
@@ -20,43 +19,28 @@
 
   $: pathnameRegex = pathname ? new RegExp(`^${pathname}/?$`) : null;
   $: selected = activeTabValue === id || pathnameRegex?.test($page.url.pathname);
-
-  const recipe = cva({
-    base: {
-      display: 'block',
-      flexGrow: { base: '1', sm: '0' },
-      width: 'full',
-      color: { base: 'gray.400', _hover: 'gray.900', _selected: 'gray.900' },
-      transition: 'common',
-    },
-    variants: {
-      variant: {
-        primary: {
-          borderBottomWidth: '[10px]',
-          borderBottomColor: { base: 'transparent', _hover: 'teal.500', _selected: 'teal.500' },
-          fontSize: '20px',
-          fontWeight: 'bold',
-        },
-        secondary: {
-          borderBottomWidth: '2px',
-          borderBottomColor: { base: 'gray.5', _hover: 'gray.900', _selected: 'gray.900' },
-          paddingX: '20px',
-          paddingY: '12px',
-          textAlign: 'center',
-          fontSize: '14px',
-          fontWeight: { base: 'semibold', _selected: 'bold' },
-          backgroundColor: { base: 'gray.5', sm: 'transparent' },
-        },
-      },
-    },
-  });
 </script>
 
 <li class={css({ smDown: { flexGrow: '1' } })} role="presentation">
   <svelte:element
     this={element}
     id="{id}-tabhead"
-    class={css(recipe.raw({ variant: $variant }), style)}
+    class={css(
+      {
+        display: 'block',
+        flexGrow: { base: '1', sm: '0' },
+        width: 'full',
+        color: { base: 'gray.400', _hover: 'gray.900', _selected: 'gray.900' },
+        transition: 'common',
+        borderBottomWidth: '2px',
+        borderBottomColor: { base: 'transparent', _hover: 'gray.900', _selected: 'gray.900' },
+        paddingBottom: '2px',
+        textAlign: 'center',
+        fontWeight: 'bold',
+        backgroundColor: { base: 'gray.5', sm: 'transparent' },
+      },
+      style,
+    )}
     aria-selected={selected}
     role="tab"
     tabindex="-1"

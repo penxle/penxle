@@ -26,7 +26,7 @@
       alignItems: 'center',
       borderRadius: 'full',
       aspectRatio: '[2/1]',
-      backgroundColor: { base: 'gray.200', _checked: 'teal.500' },
+      backgroundColor: { base: 'gray.200', _checked: 'gray.900' },
       transition: 'common',
       appearance: 'none',
       cursor: 'pointer',
@@ -38,18 +38,15 @@
         backgroundColor: 'gray.5',
       },
       _disabled: {
-        justifyContent: 'flex-start',
-        borderWidth: '1px',
-        borderColor: 'gray.300',
-        backgroundColor: 'gray.5',
+        backgroundColor: 'gray.200!',
         cursor: 'not-allowed',
-        _after: { backgroundColor: 'gray.300' },
+        _after: { backgroundColor: 'gray.400' },
       },
     },
     variants: {
       size: {
-        sm: { width: '30px', height: '16px', padding: '2px', borderRadius: '[24px]' },
-        lg: { width: '44px', height: '24px', padding: '4px', borderRadius: '[36px]' },
+        sm: { width: '36px', height: '18px', padding: '2px', borderRadius: 'full' },
+        lg: { width: '40px', height: '20px', padding: '2px', borderRadius: 'full' },
       },
     },
   });

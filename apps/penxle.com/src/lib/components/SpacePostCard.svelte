@@ -2,7 +2,7 @@
   import dayjs from 'dayjs';
   import IconAlertTriangle from '~icons/tabler/alert-triangle';
   import { fragment, graphql } from '$glitch';
-  import { Badge, Icon, Image, Tag } from '$lib/components';
+  import { Chip, Icon, Image, Tag } from '$lib/components';
   import { humanizeNumber } from '$lib/utils';
   import { css } from '$styled-system/css';
   import { center, flex } from '$styled-system/patterns';
@@ -111,16 +111,16 @@
 
       <div class={flex({ gap: '4px' })}>
         {#if $post.publishedRevision?.price}
-          <Badge style={css.raw({ marginBottom: '4px', width: 'fit' })} color="purple">유료</Badge>
+          <Chip style={css.raw({ marginBottom: '4px', width: 'fit' })} color="blue">유료</Chip>
         {/if}
         {#if $post.ageRating === 'R19'}
-          <Badge style={css.raw({ marginBottom: '4px', width: 'fit' })} color="red">성인물</Badge>
+          <Chip style={css.raw({ marginBottom: '4px', width: 'fit' })} color="pink">성인물</Chip>
         {/if}
         {#if triggerTags.length > 0}
-          <Badge style={css.raw({ marginBottom: '4px', width: 'fit' })} color="orange">트리거 주의</Badge>
+          <Chip style={css.raw({ marginBottom: '4px', width: 'fit' })} color="violet">트리거</Chip>
         {/if}
         {#if $post.hasPassword}
-          <Badge style={css.raw({ marginBottom: '4px', width: 'fit' })} color="gray">비밀글</Badge>
+          <Chip style={css.raw({ marginBottom: '4px', width: 'fit' })} color="gray">비밀글</Chip>
         {/if}
       </div>
     </div>

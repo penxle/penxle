@@ -71,11 +71,18 @@ export function createFloatingActions(options?: CreateFloatingActionsOptions): C
         .with('right', 'right-start', 'right-end', () => 'left')
         .exhaustive();
 
+      const transform = match(placement)
+        .with('top', 'top-start', 'top-end', () => 'rotate(-135deg)')
+        .with('bottom', 'bottom-start', 'bottom-end', () => 'rotate(45deg)')
+        .with('left', 'left-start', 'left-end', () => 'rotate(135deg)')
+        .with('right', 'right-start', 'right-end', () => 'rotate(-45deg)')
+        .exhaustive();
+
       Object.assign(arrowElement.style, {
         left: x === undefined ? '' : `${x}px`,
         top: y === undefined ? '' : `${y}px`,
         [side]: `${-arrowElement.offsetHeight / 2}px`,
-        transform: 'rotate(45deg)',
+        transform,
         visibility: middlewareData.bubble?.bubbled ? 'hidden' : 'visible',
       });
     }

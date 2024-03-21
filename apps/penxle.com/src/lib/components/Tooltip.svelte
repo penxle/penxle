@@ -30,14 +30,14 @@
 {#if enabled && ($hovered || keepShowing)}
   <div
     class={css({
-      borderRadius: '4px',
-      paddingX: '16px',
-      paddingY: '8px',
+      borderWidth: '1px',
+      borderColor: 'gray.300',
+      paddingX: '14px',
+      paddingY: '10px',
       fontSize: '12px',
-      color: 'gray.5',
-      backgroundColor: 'gray.900',
+      backgroundColor: 'gray.5',
       zIndex: '100',
-      maxWidth: '228px',
+      maxWidth: '230px',
     })}
     role="tooltip"
     use:floating
@@ -46,6 +46,15 @@
     <slot name="message">
       {message}
     </slot>
-    <div class={css({ size: '8px', backgroundColor: 'gray.900' })} use:arrow />
+    <div
+      class={css({
+        borderTopWidth: '1px',
+        borderLeftWidth: '1px',
+        borderColor: 'gray.300',
+        size: '8px',
+        backgroundColor: 'gray.5',
+      })}
+      use:arrow
+    />
   </div>
 {/if}

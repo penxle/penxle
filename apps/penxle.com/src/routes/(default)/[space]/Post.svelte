@@ -21,7 +21,7 @@
   import { afterNavigate, goto } from '$app/navigation';
   import { fragment, graphql } from '$glitch';
   import { mixpanel } from '$lib/analytics';
-  import { Avatar, Badge, Icon, Image, Tooltip } from '$lib/components';
+  import { Avatar, Chip, Icon, Image, Tooltip } from '$lib/components';
   import { Menu, MenuItem } from '$lib/components/menu';
   import { Button, Modal } from '$lib/components/v2';
   import { categoryFilter, pairFilter } from '$lib/const/feed';
@@ -1541,19 +1541,19 @@
                     <div class={css({ truncate: true })}>
                       <div class={flex({ align: 'center', gap: '10px', truncate: true })}>
                         {#if post.publishedRevision?.price}
-                          <Badge style={css.raw({ width: 'fit' })} color="purple">유료</Badge>
+                          <Chip style={css.raw({ width: 'fit' })} color="blue">유료</Chip>
                         {/if}
                         {#if post.ageRating === 'R19'}
-                          <Badge style={css.raw({ width: 'fit' })} color="red">성인</Badge>
+                          <Chip style={css.raw({ width: 'fit' })} color="pink">성인</Chip>
                         {/if}
                         {#if post.ageRating === 'R15'}
-                          <Badge style={css.raw({ width: 'fit' })} color="red">15세</Badge>
+                          <Chip style={css.raw({ width: 'fit' })} color="pink">15세</Chip>
                         {/if}
                         {#if post.tags.some(({ kind }) => kind === 'TRIGGER')}
-                          <Badge style={css.raw({ width: 'fit' })} color="orange">트리거주의</Badge>
+                          <Chip style={css.raw({ width: 'fit' })} color="violet">트리거</Chip>
                         {/if}
                         {#if post.hasPassword}
-                          <Badge style={css.raw({ width: 'fit' })} color="gray">비밀글</Badge>
+                          <Chip style={css.raw({ width: 'fit' })} color="gray">비밀글</Chip>
                         {/if}
 
                         <p

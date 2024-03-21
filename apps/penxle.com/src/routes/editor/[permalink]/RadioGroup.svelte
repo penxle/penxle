@@ -1,18 +1,19 @@
-<script lang="ts">
+<script generics="T" lang="ts">
   import { nanoid } from 'nanoid';
   import { Icon } from '$lib/components';
   import { css, cx, sva } from '$styled-system/css';
   import { center } from '$styled-system/patterns';
   import type { ComponentType } from 'svelte';
+  import type { RecipeVariant } from '$styled-system/css';
   import type { SystemStyleObject } from '$styled-system/types';
 
-  export let style: SystemStyleObject | undefined = undefined;
   export let name: string;
-  export let items: { label: string; value: string | number; icon?: ComponentType; checked: boolean; text?: string }[];
+  export let items: { label: string; value: T; icon?: ComponentType; checked: boolean; text?: string }[];
+  export let style: SystemStyleObject | undefined = undefined;
+  export let variant: Variants['variant'] = 'gallery';
+  export let size: Variants['size'] = 'lg';
 
-  export let variant: 'gallery' | 'list' = 'gallery';
-  export let size: 'sm' | 'md' = 'md';
-
+  type Variants = RecipeVariant<typeof recipe>;
   const recipe = sva({
     slots: ['root', 'icon', 'item'],
     base: {
@@ -21,17 +22,13 @@
         'display': 'flex',
         'justifyContent': 'center',
         'alignItems': 'center',
-        'borderWidth': '1px',
-        'borderColor': 'gray.100',
-        'marginBottom': '6px',
         'backgroundColor': 'gray.50',
         '&:has(:checked)': {
-          borderColor: 'teal.500',
-          backgroundColor: 'teal.50',
+          backgroundColor: 'cyan.400',
         },
       },
       icon: {
-        color: { base: 'gray.400', _peerChecked: 'teal.500' },
+        color: { base: 'gray.400', _peerChecked: 'gray.5' },
       },
       item: {
         _after: { content: '""', position: 'absolute', inset: '0', cursor: 'pointer' },
@@ -39,20 +36,18 @@
     },
     variants: {
       variant: {
-        gallery: {
+        'gallery': {
           item: {
             textAlign: 'center',
             color: 'gray.400',
             fontWeight: 'medium',
           },
         },
-        list: {
+        'icon-list': {
           root: {
-            gap: '6px',
-            borderRadius: '4px',
-            marginBottom: '0',
-            paddingLeft: '8px',
-            paddingRight: '18px',
+            gap: '4px',
+            paddingLeft: '10px',
+            paddingRight: '12px',
             width: 'full',
             height: '32px',
           },
@@ -60,13 +55,13 @@
             flexGrow: '1',
             fontSize: '11px',
             fontWeight: 'medium',
-            color: { base: 'gray.400', _peerChecked: 'teal.500' },
+            color: { base: 'gray.400', _peerChecked: 'gray.5' },
           },
         },
       },
       size: {
-        sm: { icon: { size: '20px' } },
-        md: { icon: { size: '32px' } },
+        sm: {},
+        lg: {},
       },
     },
     compoundVariants: [
@@ -74,15 +69,15 @@
         variant: 'gallery',
         size: 'sm',
         css: {
-          root: { size: '48px', borderRadius: '6px' },
-          item: { fontSize: '11px' },
+          root: { size: '48px', marginBottom: '6px' },
+          item: { fontSize: '12px' },
         },
       },
       {
         variant: 'gallery',
-        size: 'md',
+        size: 'lg',
         css: {
-          root: { size: '64px', borderRadius: '10px' },
+          root: { size: '64px', marginBottom: '6px' },
           item: { fontSize: '13px' },
         },
       },
@@ -92,7 +87,14 @@
   $: styles = recipe.raw({ variant, size });
 </script>
 
-<fieldset class={css({ display: 'flex', gap: '12px' }, variant === 'list' && { flexDirection: 'column' }, style)}>
+<fieldset
+  class={css(
+    { display: 'flex', gap: '8px' },
+    variant === 'gallery' && size === 'sm' && { gap: '12px' },
+    variant === 'icon-list' && { flexDirection: 'column' },
+    style,
+  )}
+>
   {#each items as item (item.value)}
     {@const id = nanoid()}
     <div class={center({ position: 'relative', flexDirection: 'column' })}>
@@ -108,20 +110,20 @@
         />
 
         {#if item.icon}
-          <Icon style={styles.icon} icon={item.icon} />
+          <Icon style={styles.icon} icon={item.icon} size={variant === 'gallery' ? (size === 'sm' ? 20 : 32) : 16} />
         {:else if item.text}
           <span
             class={css({
               fontSize: '18px',
               fontWeight: 'semibold',
-              color: { base: 'gray.400', _peerChecked: 'teal.500' },
+              color: { base: 'gray.400', _peerChecked: 'gray.5' },
             })}
           >
             {item.text}
           </span>
         {/if}
 
-        {#if variant === 'list'}
+        {#if variant === 'icon-list'}
           <label class={css(styles.item)} for={id}>
             {item.label}
           </label>

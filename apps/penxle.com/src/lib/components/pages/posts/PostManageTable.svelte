@@ -9,7 +9,7 @@
   import IconTrash from '~icons/tabler/trash';
   import { fragment, graphql } from '$glitch';
   import { mixpanel } from '$lib/analytics';
-  import { Avatar, Badge, Button, Icon, Image, Modal, Tag, Tooltip } from '$lib/components';
+  import { Avatar, Button, Chip, Icon, Image, Modal, Tag, Tooltip } from '$lib/components';
   import { Checkbox, Editable, Switch } from '$lib/components/forms';
   import { Menu, MenuItem } from '$lib/components/menu';
   import { Table, TableData, TableHead, TableHeader, TableRow } from '$lib/components/table';
@@ -356,7 +356,7 @@
                     {post.member.profile.name}
                   </span>
                   {#if post.member.id === $spaceMember?.id}
-                    <Badge style={css.raw({ paddingX: '8px', paddingY: '4px', width: 'fit' })} color="green">나</Badge>
+                    <Chip style={css.raw({ paddingX: '8px', paddingY: '4px', width: 'fit' })} color="grass">나</Chip>
                   {/if}
                 {:else if type === 'me'}
                   <Avatar style={css.raw({ size: '20px' })} $profile={post.member.profile} />
@@ -368,7 +368,7 @@
           <TableData style={css.raw({ maxWidth: '192px', hideBelow: 'sm' })}>
             <div class={flex({ gap: '4px' })}>
               {#each post.tags.slice(0, 3) as { tag } (tag.id)}
-                <Tag size="sm">{tag.name}</Tag>
+                <Tag size="sm">#{tag.name}</Tag>
               {/each}
               {#if post.tags.length > 2}
                 <Tooltip

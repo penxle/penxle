@@ -3,6 +3,7 @@
   import IconChevronDown from '~icons/tabler/chevron-down';
   import IconFilter from '~icons/tabler/filter';
   import IconSearch from '~icons/tabler/search';
+  import IconX from '~icons/tabler/x';
   import { page } from '$app/stores';
   import { Button, Icon, Modal, Tag } from '$lib/components';
   import { Radio } from '$lib/components/forms';
@@ -165,6 +166,7 @@
                 }}
               >
                 #{tag}
+                <Icon slot="right-icon" icon={IconX} size={12} />
               </Tag>
             {/each}
           </div>
@@ -240,6 +242,7 @@
                 }}
               >
                 #{tag}
+                <Icon slot="right-icon" icon={IconX} size={12} />
               </Tag>
             {/each}
           </div>
@@ -453,6 +456,7 @@
               }}
             >
               #{tag}
+              <Icon slot="right-icon" icon={IconX} size={12} />
             </Tag>
           {/each}
         </div>
@@ -524,6 +528,7 @@
               }}
             >
               #{tag}
+              <Icon slot="right-icon" icon={IconX} size={12} />
             </Tag>
           {/each}
         </div>

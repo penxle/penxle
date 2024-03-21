@@ -91,8 +91,7 @@
 
 <TabHead
   style={css.raw({
-    marginTop: '36px',
-    marginBottom: '16px',
+    fontSize: '18px',
     width: 'full',
     smDown: {
       position: 'sticky',
@@ -101,7 +100,6 @@
     },
   })}
   {search}
-  variant="secondary"
 >
   <TabHeadItem id={0} pathname="/search">전체</TabHeadItem>
   <TabHeadItem id={1} pathname="/search/post">포스트</TabHeadItem>

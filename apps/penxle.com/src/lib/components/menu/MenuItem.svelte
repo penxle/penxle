@@ -31,8 +31,18 @@
 <svelte:element
   this={element}
   class={css(
-    { borderRadius: '8px', paddingX: '14px', paddingY: '12px', width: 'full', fontSize: '14px' },
-    disabled ? { cursor: 'not-allowed' } : { _hover: { backgroundColor: 'teal.50', color: 'teal.600' } },
+    {
+      paddingX: '16px',
+      paddingY: '14px',
+      width: 'full',
+      fontSize: '14px',
+      fontWeight: 'medium',
+      textAlign: 'left',
+      color: 'gray.500',
+      borderBottomWidth: '1px',
+      borderBottomColor: 'gray.100',
+    },
+    disabled ? { cursor: 'not-allowed' } : { _hover: { backgroundColor: 'gray.100', color: 'gray.900' } },
     style,
   )}
   role="menuitem"

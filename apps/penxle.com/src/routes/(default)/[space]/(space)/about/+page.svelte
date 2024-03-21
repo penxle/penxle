@@ -2,7 +2,7 @@
   import dayjs from 'dayjs';
   import IconAlertTriangle from '~icons/tabler/alert-triangle';
   import { graphql } from '$glitch';
-  import { Avatar, Badge, Helmet, Icon } from '$lib/components';
+  import { Avatar, Chip, Helmet, Icon } from '$lib/components';
   import { css } from '$styled-system/css';
   import { center, flex } from '$styled-system/patterns';
 
@@ -87,7 +87,7 @@
             <Avatar style={css.raw({ marginRight: '12px', size: '24px' })} $profile={member.profile} />
             <span class={css({ fontSize: '14px', fontWeight: 'semibold', truncate: true })}>{member.profile.name}</span>
             {#if member.role === 'ADMIN'}
-              <Badge style={css.raw({ marginLeft: '4px' })} color="green">관리자</Badge>
+              <Chip style={css.raw({ marginLeft: '4px' })} color="grass">관리자</Chip>
             {/if}
           </li>
         {/each}

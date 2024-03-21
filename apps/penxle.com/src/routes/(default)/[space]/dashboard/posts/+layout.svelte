@@ -26,11 +26,10 @@
 >
   <h1 class={css({ fontSize: '20px', fontWeight: 'bold' })}>포스트 관리</h1>
   <div>
-    <TabHead style={css.raw({ borderStyle: 'none' })} variant="secondary">
+    <TabHead style={css.raw({ paddingLeft: '0', fontSize: '18px' })}>
       <TabHeadItem id={0} pathname="/{$page.params.space}/dashboard/posts">포스트</TabHeadItem>
       <TabHeadItem id={1} pathname="/{$page.params.space}/dashboard/posts/collections">컬렉션</TabHeadItem>
     </TabHead>
-    <hr class={css({ width: 'full', borderColor: 'gray.900/10' })} />
   </div>
   <slot />
 </section>
