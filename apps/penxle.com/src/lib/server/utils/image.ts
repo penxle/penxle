@@ -6,10 +6,9 @@ import sharp from 'sharp';
 import { rgbaToThumbHash } from 'thumbhash';
 import twemoji from 'twemoji';
 import { aws } from '$lib/server/external-api';
-import { createId } from '$lib/utils';
+import { database, Images } from '../database';
 import { getDominantColor } from './mmcq';
 import type { ImageBounds } from '$lib/utils';
-import type { InteractiveTransactionClient } from '../database';
 
 type ImageSource = Buffer | ArrayBuffer | Uint8Array;
 
@@ -99,13 +98,12 @@ export const finalizeImage = async (source: ImageSource, bounds?: ImageBounds) =
 };
 
 type DirectUploadImageParams = {
-  db: InteractiveTransactionClient;
   userId?: string;
   name: string;
   source: ImageSource;
   bounds?: ImageBounds;
 };
-export const directUploadImage = async ({ db, userId, name, source, bounds }: DirectUploadImageParams) => {
+export const directUploadImage = async ({ userId, name, source, bounds }: DirectUploadImageParams) => {
   const res = await finalizeImage(source, bounds);
 
   const key = aws.createS3ObjectKey('images');
@@ -121,9 +119,9 @@ export const directUploadImage = async ({ db, userId, name, source, bounds }: Di
     }),
   );
 
-  const image = await db.image.create({
-    data: {
-      id: createId(),
+  const [image] = await database
+    .insert(Images)
+    .values({
       userId,
       name,
       format: `image/${res.format}`,
@@ -134,8 +132,8 @@ export const directUploadImage = async ({ db, userId, name, source, bounds }: Di
       color: res.color,
       placeholder: res.placeholder,
       hash: res.hash,
-    },
-  });
+    })
+    .returning({ id: Images.id });
 
   return image.id;
 };

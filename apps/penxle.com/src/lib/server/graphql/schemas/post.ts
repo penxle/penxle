@@ -1,703 +1,790 @@
 import { init as cuid } from '@paralleldrive/cuid2';
 import { hash, verify } from 'argon2';
 import dayjs from 'dayjs';
-import * as R from 'radash';
+import { and, asc, count, desc, eq, exists, gt, inArray, isNotNull, isNull, lt, ne, notExists, or } from 'drizzle-orm';
+import { alias } from 'drizzle-orm/pg-core';
 import { match, P } from 'ts-pattern';
 import { emojiData } from '$lib/emoji';
+import {
+  PostAgeRating,
+  PostCategory,
+  PostCommentQualification,
+  PostPair,
+  PostRevisionKind,
+  PostState,
+  PostTagKind,
+  PostVisibility,
+} from '$lib/enums';
 import { FormValidationError, IntentionalError, NotFoundError, PermissionDeniedError } from '$lib/errors';
 import { redis } from '$lib/server/cache';
+import {
+  BookmarkGroupPosts,
+  BookmarkGroups,
+  database,
+  PostComments,
+  PostLikes,
+  PostPurchases,
+  PostReactions,
+  PostRevisionContents,
+  PostRevisions,
+  Posts,
+  PostTags,
+  PostViews,
+  Revenues,
+  SpaceCollectionPosts,
+  SpaceCollections,
+  SpaceMasquerades,
+  SpaceMembers,
+  Spaces,
+  Tags,
+  UserContentFilterPreferences,
+  UserPersonalIdentities,
+} from '$lib/server/database';
 import { elasticSearch, indexName } from '$lib/server/search';
 import {
   createNotification,
-  createRevenue,
   deductUserPoint,
+  defragmentSpaceCollectionPosts,
   generatePostShareImage,
   getMutedSpaceIds,
   getMutedTagIds,
   getPostViewCount,
+  getSpaceMember,
   getUserPoint,
-  indexPost,
-  indexPostTrendingScore,
   isAdulthood,
   isGte15,
-  Loader,
   makeMasquerade,
+  makePostContentId,
   makeQueryContainers,
-  revisePostContent,
-  searchResultToPrismaData,
+  searchResultToIds,
 } from '$lib/server/utils';
-import { decorateContent, isEmptyContent, revisionContentToText, sanitizeContent } from '$lib/server/utils/tiptap';
-import { base36To10, createId, createTiptapDocument, createTiptapNode, validateTiptapDocument } from '$lib/utils';
+import { decorateContent, revisionContentToText, sanitizeContent } from '$lib/server/utils/tiptap';
+import {
+  base36To10,
+  createTiptapDocument,
+  createTiptapNode,
+  makeNullableArrayElement,
+  validateTiptapDocument,
+} from '$lib/utils';
 import { PublishPostInputSchema, RevisePostInputSchema } from '$lib/validations/post';
-import { PrismaEnums } from '$prisma';
-import { defineSchema } from '../builder';
+import { builder } from '../builder';
+import { createObjectRef } from '../utils';
+import { BookmarkGroup } from './bookmark';
+import { SpaceCollection } from './collection';
+import { PostComment } from './comment';
+import { Image } from './image';
+import { Space, SpaceMember } from './space';
+import { PostTag } from './tag';
 import type { JSONContent } from '@tiptap/core';
 
-export const postSchema = defineSchema((builder) => {
-  /**
-   * * Types
-   */
+/**
+ * * Types
+ */
 
-  const CommentOrderByKind = builder.enumType('CommentOrderByKind', {
-    values: ['LATEST', 'OLDEST'] as const,
-  });
+const CommentOrderByKind = builder.enumType('CommentOrderByKind', {
+  values: ['LATEST', 'OLDEST'] as const,
+});
 
-  builder.prismaObject('Post', {
-    grantScopes: async (post, { db, ...context }) => {
-      // 글 관리 권한이 있는지 체크
-      if (context.session?.userId === post.userId) {
-        return ['$post:view', '$post:edit'];
-      }
+export const Post = createObjectRef('Post', Posts);
+Post.implement({
+  fields: (t) => ({
+    id: t.exposeID('id'),
+    state: t.expose('state', { type: PostState }),
 
-      const spaceMemberLoader = Loader.spaceMember({ db, context });
-      const member = await spaceMemberLoader.load(post.spaceId);
+    permalink: t.exposeString('permalink'),
+    shortlink: t.string({
+      resolve: ({ permalink }) => BigInt(permalink).toString(36),
+    }),
 
-      if (member?.role === 'ADMIN') {
-        return ['$post:view', '$post:edit'];
-      }
+    createdAt: t.expose('createdAt', { type: 'DateTime' }),
+    publishedAt: t.expose('publishedAt', { type: 'DateTime', nullable: true }),
 
-      // 이 이하부터 글 관리 권한 없음
-      // 글을 볼 권한이 없는지 체크
+    member: t.field({
+      type: SpaceMember,
+      nullable: true,
+      resolve: (post) => post.memberId,
+    }),
 
-      if (post.state !== 'PUBLISHED' || (post.visibility === 'SPACE' && member?.role !== 'MEMBER')) {
-        const purchase = context.session
-          ? await db.postPurchase.exists({
-              where: {
-                postId: post.id,
-                userId: context.session.userId,
-              },
-            })
-          : false;
+    space: t.field({
+      type: Space,
+      nullable: true,
+      resolve: (post) => post.spaceId,
+    }),
 
-        if (!purchase) {
+    tags: t.field({
+      type: [PostTag],
+      resolve: async (post, _, context) => {
+        const loader = context.loader({
+          name: 'Post.tags',
+          many: true,
+          load: async (ids: string[]) => {
+            return await database.select().from(PostTags).where(inArray(PostTags.postId, ids));
+          },
+          key: (row) => row.postId,
+        });
+
+        return loader.load(post.id);
+      },
+    }),
+
+    visibility: t.expose('visibility', { type: PostVisibility }),
+    ageRating: t.expose('ageRating', { type: PostAgeRating }),
+    externalSearchable: t.exposeBoolean('externalSearchable'),
+    category: t.expose('category', { type: PostCategory }),
+    pairs: t.expose('pairs', { type: [PostPair] }),
+
+    discloseStats: t.exposeBoolean('discloseStats'),
+    receiveFeedback: t.exposeBoolean('receiveFeedback'),
+    receivePatronage: t.exposeBoolean('receivePatronage'),
+    receiveTagContribution: t.exposeBoolean('receiveTagContribution'),
+    protectContent: t.exposeBoolean('protectContent'),
+    commentQualification: t.expose('commentQualification', { type: PostCommentQualification }),
+
+    thumbnail: t.field({
+      type: Image,
+      nullable: true,
+      resolve: (post) => post.thumbnailId,
+    }),
+
+    likeCount: t.int({
+      resolve: async (post) => {
+        const [{ value }] = await database
+          .select({ value: count() })
+          .from(PostLikes)
+          .where(eq(PostLikes.postId, post.id));
+        return value;
+      },
+    }),
+
+    viewCount: t.int({
+      resolve: (post) => getPostViewCount(post.id),
+    }),
+
+    viewed: t.boolean({
+      resolve: async (post, _, context) => {
+        if (!context.session) {
+          return false;
+        }
+
+        const views = await database
+          .select({ id: PostViews.id })
+          .from(PostViews)
+          .where(and(eq(PostViews.postId, post.id), eq(PostViews.userId, context.session.userId)));
+
+        return views.length > 0;
+      },
+    }),
+
+    hasPassword: t.boolean({
+      resolve: (post) => !!post.password,
+    }),
+
+    unlocked: t.boolean({
+      resolve: async (post, _, context) => {
+        if (!post.password) {
+          return true;
+        }
+
+        const unlock = await redis.hget(`Post:${post.id}:passwordUnlock`, context.deviceId);
+        return !!unlock && dayjs(unlock).isAfter(dayjs());
+      },
+    }),
+
+    blurred: t.boolean({
+      resolve: async (post, _, context) => {
+        if (post.ageRating !== 'ALL' && !context.session) {
+          return true;
+        }
+
+        const triggerTagsLoader = context.loader({
+          name: 'Post.blurred > triggerTags',
+          many: true,
+          load: async (ids: string[]) => {
+            return await database
+              .select({ postId: PostTags.postId })
+              .from(PostTags)
+              .where(and(inArray(PostTags.postId, ids), eq(PostTags.kind, 'TRIGGER')));
+          },
+          key: (row) => row?.postId,
+        });
+
+        const triggerTags = await triggerTagsLoader.load(post.id);
+
+        if (triggerTags.length > 0) {
+          return true;
+        }
+
+        if (post.ageRating === 'ALL') {
+          return false;
+        }
+
+        const adultFiltersLoader = context.loader({
+          name: 'Post.blurred > adultFilters',
+          nullable: true,
+          load: async (ids: string[]) => {
+            return await database
+              .select({ userId: UserContentFilterPreferences.userId, action: UserContentFilterPreferences.action })
+              .from(UserContentFilterPreferences)
+              .where(
+                and(
+                  inArray(UserContentFilterPreferences.userId, ids),
+                  eq(UserContentFilterPreferences.category, 'ADULT'),
+                ),
+              );
+          },
+          key: (row) => row?.userId,
+        });
+
+        // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+        const adultFilters = await adultFiltersLoader.load(context.session!.userId);
+
+        return adultFilters?.action !== 'EXPOSE';
+      },
+    }),
+
+    publishedRevision: t.field({
+      type: PostRevision,
+      nullable: true,
+      resolve: (post) => post.publishedRevisionId,
+    }),
+
+    revisions: t.field({
+      type: [PostRevision],
+      resolve: async (post) =>
+        await database
+          .select({ id: PostRevisions.id })
+          .from(PostRevisions)
+          .where(eq(PostRevisions.postId, post.id))
+          .then((revisions) => revisions.map((revision) => revision.id)),
+    }),
+
+    draftRevision: t.field({
+      type: PostRevision,
+      args: { revisionId: t.arg.id({ required: false }) },
+      resolve: async (post, { revisionId }, context) => {
+        if (revisionId) {
+          return revisionId;
+        }
+
+        const loader = context.loader({
+          name: 'PostRevision.draftRevision',
+          load: async (ids: string[]) => {
+            return await database
+              .selectDistinctOn([PostRevisions.postId])
+              .from(PostRevisions)
+              .where(inArray(PostRevisions.postId, ids))
+              .orderBy(asc(PostRevisions.postId), desc(PostRevisions.createdAt), asc(PostRevisions.id));
+          },
+          key: (revision) => revision.postId,
+        });
+
+        return await loader.load(post.id);
+      },
+    }),
+
+    liked: t.boolean({
+      resolve: async (post, _, context) => {
+        if (!context.session) {
+          return false;
+        }
+
+        const likes = await database
+          .select({ id: PostLikes.id })
+          .from(PostLikes)
+          .where(and(eq(PostLikes.postId, post.id), eq(PostLikes.userId, context.session.userId)));
+
+        return likes.length > 0;
+      },
+    }),
+
+    reactions: t.field({
+      type: [PostReaction],
+      resolve: async (post, _, context) => {
+        if (!post.receiveFeedback) {
           return [];
         }
-      }
 
-      return ['$post:view'];
-    },
-    fields: (t) => ({
-      id: t.exposeID('id'),
-      state: t.expose('state', { type: PrismaEnums.PostState }),
+        if (!context.session) {
+          return await database
+            .select()
+            .from(PostReactions)
+            .where(eq(PostReactions.postId, post.id))
+            .orderBy(desc(PostReactions.createdAt));
+        }
 
-      permalink: t.exposeString('permalink'),
-      shortlink: t.field({
-        type: 'String',
-        resolve: ({ permalink }) => BigInt(permalink).toString(36),
-      }),
-
-      createdAt: t.expose('createdAt', { type: 'DateTime' }),
-      publishedAt: t.expose('publishedAt', { type: 'DateTime', nullable: true }),
-
-      member: t.relation('member', { nullable: true }),
-      space: t.relation('space', { nullable: true }),
-      likeCount: t.relationCount('likes'),
-
-      viewCount: t.int({
-        resolve: (post, _, { db }) => getPostViewCount({ db, postId: post.id }),
-      }),
-
-      viewed: t.boolean({
-        select: (_, context, nestedSelection) => {
-          return {
-            views: context.session
-              ? nestedSelection({
-                  where: {
-                    userId: context.session.userId,
-                  },
-                })
-              : false,
-          };
-        },
-        resolve: async ({ views }) => !!(views && views.length > 0),
-      }),
-
-      visibility: t.expose('visibility', { type: PrismaEnums.PostVisibility }),
-      ageRating: t.expose('ageRating', { type: PrismaEnums.PostAgeRating }),
-      externalSearchable: t.exposeBoolean('externalSearchable'),
-      category: t.expose('category', { type: PrismaEnums.PostCategory }),
-      pairs: t.expose('pairs', { type: [PrismaEnums.PostPair] }),
-      tags: t.relation('tags'),
-      discloseStats: t.exposeBoolean('discloseStats'),
-      receiveFeedback: t.exposeBoolean('receiveFeedback'),
-      receivePatronage: t.exposeBoolean('receivePatronage'),
-      receiveTagContribution: t.exposeBoolean('receiveTagContribution'),
-      protectContent: t.exposeBoolean('protectContent'),
-      commentQualification: t.expose('commentQualification', { type: PrismaEnums.PostCommentQualification }),
-
-      thumbnail: t.relation('thumbnail', {
-        authScopes: { $granted: '$post:view' },
-        nullable: true,
-        unauthorizedResolver: () => null,
-      }),
-
-      hasPassword: t.boolean({
-        resolve: (post) => !!post.password,
-      }),
-
-      unlocked: t.boolean({
-        resolve: async (post, _, context) => {
-          if (!post.password) {
-            return true;
-          }
-
-          const unlock = await redis.hget(`Post:${post.id}:passwordUnlock`, context.deviceId);
-          return !!unlock && dayjs(unlock).isAfter(dayjs());
-        },
-      }),
-
-      blurred: t.boolean({
-        select: {
-          tags: { where: { kind: 'TRIGGER' } },
-          ageRating: true,
-        },
-        resolve: async (post, _, { db, ...context }) => {
-          if (post.ageRating === 'ALL') return post.tags.length > 0;
-          if (!context.session) return true;
-
-          const contentFilter = await db.userContentFilterPreference.findUnique({
-            where: {
-              userId_category: {
-                userId: context.session.userId,
-                category: 'ADULT',
-              },
-            },
-          });
-
-          return contentFilter?.action !== 'EXPOSE';
-        },
-      }),
-
-      publishedRevision: t.relation('publishedRevision', {
-        authScopes: { $granted: '$post:view' },
-        nullable: true,
-        unauthorizedResolver: () => null,
-      }),
-
-      revisions: t.relation('revisions', {
-        authScopes: { $granted: '$post:edit' },
-        grantScopes: ['$postRevision:edit'],
-        query: {
-          orderBy: { createdAt: 'desc' },
-        },
-      }),
-
-      draftRevision: t.prismaField({
-        type: 'PostRevision',
-        authScopes: { $granted: '$post:edit' },
-        grantScopes: ['$postRevision:edit'],
-        args: { revisionId: t.arg.id({ required: false }) },
-        select: ({ revisionId }, __, nestedSelection) => ({
-          revisions: nestedSelection({
-            where: { id: revisionId },
-            orderBy: { createdAt: 'desc' },
-            take: 1,
-          }),
-        }),
-        resolve: (_, { revisions }) => revisions[0],
-      }),
-
-      liked: t.boolean({
-        resolve: async (post, _, { db, ...context }) => {
-          if (!context.session) {
-            return false;
-          }
-
-          return await db.postLike.existsUnique({
-            where: {
-              postId_userId: {
-                postId: post.id,
-                userId: context.session.userId,
-              },
-            },
-          });
-        },
-      }),
-
-      reactions: t.prismaField({
-        type: ['PostReaction'],
-        resolve: async (query, post, _, { db, ...context }) => {
-          if (!post.receiveFeedback) {
-            return [];
-          }
-
-          if (!context.session) {
-            return db.postReaction.findMany({
-              ...query,
-              where: { postId: post.id },
-            });
-          }
-
-          return [
-            ...(await db.postReaction.findMany({
-              ...query,
-              where: {
-                postId: post.id,
-                userId: context.session.userId,
-              },
-              orderBy: { createdAt: 'desc' },
-            })),
-            ...(await db.postReaction.findMany({
-              ...query,
-              where: {
-                postId: post.id,
-                userId: { not: context.session.userId },
-              },
-              orderBy: { createdAt: 'desc' },
-            })),
-          ];
-        },
-      }),
-
-      reactionCount: t.relationCount('reactions'),
-
-      bookmarkGroups: t.prismaField({
-        type: ['BookmarkGroup'],
-        select: (_, context, nestedSelection) => {
-          if (!context.session) {
-            return {};
-          }
-          return {
-            bookmarks: {
-              select: { bookmarkGroup: nestedSelection() },
-              where: {
-                bookmarkGroup: {
-                  userId: context.session?.userId,
-                },
-              },
-            },
-          };
-        },
-        resolve: (_, post, __, context) => {
-          if (!context.session) {
-            return [];
-          }
-
-          // @ts-expect-error session이 있으면 bookmarkGroup도 존재함 (이거 타입가드를 깔끔하게 할 수 있는 방법이 없을까요...)
-          return R.sift(post.bookmarks.map((bookmark) => bookmark.bookmarkGroup ?? null));
-        },
-
-        unauthorizedResolver: () => [],
-      }),
-
-      collection: t.prismaField({
-        type: 'SpaceCollection',
-        nullable: true,
-        select: (_, __, nestedSelection) => ({
-          collectionPost: {
-            where: { collection: { state: 'ACTIVE' } },
-            select: { collection: nestedSelection() },
-          },
-        }),
-
-        resolve: (_, { collectionPost }) => {
-          return collectionPost ? collectionPost.collection : null;
-        },
-      }),
-
-      purchasedAt: t.field({
-        type: 'DateTime',
-        nullable: true,
-        select: (_, context) => ({
-          purchases: context.session
-            ? {
-                where: {
-                  userId: context.session?.userId,
-                },
-                take: 1,
-              }
-            : undefined,
-        }),
-
-        resolve: ({ purchases }, _, context) => {
-          if (!context.session) {
-            return null;
-          }
-
-          return purchases[0]?.createdAt ?? null;
-        },
-      }),
-
-      previousPost: t.prismaField({
-        type: 'Post',
-        nullable: true,
-        resolve: async (query, post, _, { db, ...context }) => {
-          if (!post.publishedAt) {
-            return null;
-          }
-
-          const spaceMemberLoader = Loader.spaceMember({ db, context });
-          const meAsMember = await spaceMemberLoader.load(post.spaceId);
-
-          return db.post.findFirst({
-            ...query,
-            where: {
-              spaceId: post.spaceId,
-              state: 'PUBLISHED',
-              publishedAt: { lt: post.publishedAt },
-              visibility: meAsMember ? undefined : 'PUBLIC',
-            },
-            orderBy: { publishedAt: 'desc' },
-          });
-        },
-      }),
-
-      nextPost: t.prismaField({
-        type: 'Post',
-        nullable: true,
-        resolve: async (query, post, _, { db, ...context }) => {
-          if (!post.publishedAt) {
-            return null;
-          }
-
-          const spaceMemberLoader = Loader.spaceMember({ db, context });
-          const meAsMember = await spaceMemberLoader.load(post.spaceId);
-
-          return await db.post.findFirst({
-            ...query,
-            where: {
-              spaceId: post.spaceId,
-              state: 'PUBLISHED',
-              publishedAt: { gt: post.publishedAt },
-              visibility: meAsMember ? undefined : 'PUBLIC',
-            },
-            orderBy: { publishedAt: 'asc' },
-          });
-        },
-      }),
-
-      recommendedPosts: t.prismaField({
-        type: ['Post'],
-        select: { publishedRevision: true },
-        resolve: async (query, post, _, { db, ...context }) => {
-          if (!post.publishedRevision) {
-            return [];
-          }
-
-          const [postTagIds, mutedTagIds, mutedSpaceIds, recentlyViewedPostIds] = await Promise.all([
-            db.postTag
-              .findMany({
-                where: { postId: post.id },
-              })
-              .then((tags) => tags.map(({ tagId }) => tagId)),
-            getMutedTagIds({ db, userId: context.session?.userId }),
-            getMutedSpaceIds({ db, userId: context.session?.userId }),
-            context.session
-              ? db.postView
-                  .findMany({
-                    where: { userId: context.session?.userId },
-                    orderBy: { viewedAt: 'desc' },
-                    take: 100,
-                  })
-                  .then((views) => [...views.map(({ postId }) => postId), post.id])
-              : [post.id],
-          ]);
-
-          const searchResult = await elasticSearch.search({
-            index: indexName('posts'),
-            query: {
-              function_score: {
-                query: {
-                  bool: {
-                    should: [
-                      { terms: { 'tags.id': postTagIds } },
-                      { term: { ['spaceId']: post.spaceId } },
-                      { rank_feature: { field: 'trendingScore' } },
-                    ],
-                    must_not: makeQueryContainers([
-                      {
-                        query: {
-                          terms: { ['tags.id']: mutedTagIds },
-                        },
-                        condition: mutedTagIds.length > 0,
-                      },
-                      {
-                        query: {
-                          terms: { spaceId: mutedSpaceIds },
-                        },
-                        condition: mutedSpaceIds.length > 0,
-                      },
-                      {
-                        query: {
-                          ids: { values: recentlyViewedPostIds },
-                        },
-                      },
-                    ]),
-                  },
-                },
-                functions: [
-                  {
-                    random_score: { seed: Math.floor(Math.random() * 1000), field: '_seq_no' },
-                  },
-                ],
-              },
-            },
-
-            size: 3,
-          });
-
-          return searchResultToPrismaData({
-            searchResult,
-            db,
-            tableName: 'post',
-            queryArgs: {
-              ...query,
-              where: {
-                state: 'PUBLISHED',
-                space: {
-                  state: 'ACTIVE',
-                  visibility: 'PUBLIC',
-                },
-              },
-            },
-          });
-        },
-      }),
-
-      commentCount: t.relationCount('comments', {
-        args: { pagination: t.arg.boolean({ defaultValue: false }) },
-        where: ({ pagination }) => {
-          if (!pagination) {
-            return { state: 'ACTIVE' as const };
-          }
-          return {
-            OR: [
-              { state: 'ACTIVE' as const },
-              {
-                childComments: {
-                  some: { state: 'ACTIVE' as const },
-                },
-              },
-            ],
-            parentId: null,
-          };
-        },
-      }),
-
-      comments: t.prismaField({
-        type: ['PostComment'],
-        args: {
-          orderBy: t.arg({ type: CommentOrderByKind, defaultValue: 'OLDEST' }),
-          page: t.arg.int({ defaultValue: 1 }),
-          take: t.arg.int({ defaultValue: 5 }),
-        },
-        resolve: async (query, post, { orderBy, page, take }, { db }) => {
-          if (post.commentQualification === 'NONE') return [];
-
-          const orderQuery = match(orderBy)
-            .with('OLDEST', () => ({ createdAt: 'asc' as const }))
-            .with('LATEST', () => ({ createdAt: 'desc' as const }))
-            .exhaustive();
-
-          const pinnedComments = await db.postComment.findMany({
-            ...query,
-            where: {
-              postId: post.id,
-              state: 'ACTIVE',
-              pinned: true,
-              profile: {
-                OR: [
-                  {
-                    spaceMasquerade: {
-                      NOT: {
-                        blockedAt: { not: null },
-                      },
-                    },
-                  },
-                  {
-                    spaceMasquerade: null,
-                  },
-                ],
-              },
-            },
-            orderBy: orderQuery,
-            take,
-            skip: (page - 1) * take,
-          });
-
-          if (pinnedComments.length >= take) {
-            return pinnedComments;
-          }
-
-          const pinnedCommentsCount = await db.postComment.count({
-            where: {
-              postId: post.id,
-              state: 'ACTIVE',
-              pinned: true,
-              profile: {
-                OR: [
-                  {
-                    spaceMasquerade: {
-                      NOT: {
-                        blockedAt: { not: null },
-                      },
-                    },
-                  },
-                  {
-                    spaceMasquerade: null,
-                  },
-                ],
-              },
-            },
-          });
-
-          const comments = await db.postComment.findMany({
-            ...query,
-            where: {
-              postId: post.id,
-              pinned: false,
-              parentId: null,
-              profile: {
-                OR: [
-                  {
-                    spaceMasquerade: {
-                      NOT: {
-                        blockedAt: { not: null },
-                      },
-                    },
-                  },
-                  {
-                    spaceMasquerade: null,
-                  },
-                ],
-              },
-              OR: [
-                { state: 'ACTIVE' },
-                {
-                  childComments: {
-                    some: { state: 'ACTIVE' },
-                  },
-                },
-              ],
-            },
-            orderBy: orderQuery,
-            take: take - pinnedComments.length,
-            skip: Math.max(0, (page - 1) * take - pinnedCommentsCount),
-          });
-
-          return [...pinnedComments, ...comments];
-        },
-      }),
-
-      //// deprecated
-
-      purchasedRevision: t.withAuth({ user: true }).prismaField({
-        type: 'PostRevision',
-        deprecationReason: 'Use PostPurchase.revision instead',
-        nullable: true,
-        select: (_, context, nestedSelection) => ({
-          revisions: nestedSelection({
-            where: {
-              purchases: {
-                some: { userId: context.session.userId },
-              },
-            },
-            take: 1,
-          }),
-        }),
-
-        resolve: (_, { revisions }) => revisions[0],
-      }),
+        return [
+          ...(await database
+            .select()
+            .from(PostReactions)
+            .where(and(eq(PostReactions.postId, post.id), eq(PostReactions.userId, context.session.userId)))
+            .orderBy(desc(PostReactions.createdAt))),
+          ...(await database
+            .select()
+            .from(PostReactions)
+            .where(and(eq(PostReactions.postId, post.id), ne(PostReactions.userId, context.session.userId)))
+            .orderBy(desc(PostReactions.createdAt))),
+        ];
+      },
     }),
-  });
 
-  builder.prismaObject('PostRevision', {
-    grantScopes: async (revision, { db, ...context }) => {
-      const postLoader = Loader.post({ db, context });
-      const post = await postLoader.load(revision.postId);
+    reactionCount: t.int({
+      resolve: async (post) =>
+        await database
+          .select({ count: count() })
+          .from(PostReactions)
+          .where(eq(PostReactions.postId, post.id))
+          .then(([{ count }]) => count),
+    }),
 
-      if (!post) {
-        return [];
-      }
-
-      if (post.ageRating !== 'ALL') {
+    bookmarkGroups: t.field({
+      type: [BookmarkGroup],
+      resolve: async (post, _, context) => {
         if (!context.session) {
           return [];
         }
 
-        const identity = await db.userPersonalIdentity.findUnique({
-          where: { userId: context.session.userId },
+        return await database
+          .select({ id: BookmarkGroups.id })
+          .from(BookmarkGroups)
+          .innerJoin(BookmarkGroupPosts, eq(BookmarkGroups.id, BookmarkGroupPosts.bookmarkGroupId))
+          .where(and(eq(BookmarkGroups.userId, context.session.userId), eq(BookmarkGroupPosts.postId, post.id)))
+          .then((groups) => groups.map((group) => group.id));
+      },
+    }),
+
+    collection: t.field({
+      type: SpaceCollection,
+      nullable: true,
+      resolve: async (post) =>
+        database
+          .select({ id: SpaceCollections.id })
+          .from(SpaceCollections)
+          .innerJoin(SpaceCollectionPosts, eq(SpaceCollections.id, SpaceCollectionPosts.collectionId))
+          .where(and(eq(SpaceCollectionPosts.postId, post.id), eq(SpaceCollections.state, 'ACTIVE')))
+          .then((collections) => collections[0]?.id),
+    }),
+
+    purchasedAt: t.field({
+      type: 'DateTime',
+      nullable: true,
+      resolve: async (post, _, context) => {
+        if (!context.session) {
+          return null;
+        }
+
+        return await database
+          .select({ createdAt: PostPurchases.createdAt })
+          .from(PostPurchases)
+          .where(and(eq(PostPurchases.postId, post.id), eq(PostPurchases.userId, context.session.userId)))
+          .then((purchases) => purchases[0]?.createdAt);
+      },
+    }),
+
+    previousPost: t.field({
+      type: Post,
+      nullable: true,
+      resolve: async (post) => {
+        if (!post.publishedAt || !post.spaceId) {
+          return null;
+        }
+
+        const posts = await database
+          .select()
+          .from(Posts)
+          .where(
+            and(
+              eq(Posts.spaceId, post.spaceId),
+              eq(Posts.state, 'PUBLISHED'),
+              eq(Posts.visibility, 'PUBLIC'),
+              lt(Posts.publishedAt, post.publishedAt),
+            ),
+          )
+          .orderBy(desc(Posts.publishedAt))
+          .limit(1);
+
+        if (posts.length === 0) {
+          return null;
+        }
+
+        return posts[0];
+      },
+    }),
+
+    nextPost: t.field({
+      type: Post,
+      nullable: true,
+      resolve: async (post) => {
+        if (!post.publishedAt || !post.spaceId) {
+          return null;
+        }
+
+        const posts = await database
+          .select()
+          .from(Posts)
+          .where(
+            and(
+              eq(Posts.spaceId, post.spaceId),
+              eq(Posts.state, 'PUBLISHED'),
+              eq(Posts.visibility, 'PUBLIC'),
+              gt(Posts.publishedAt, post.publishedAt),
+            ),
+          )
+          .orderBy(asc(Posts.publishedAt))
+          .limit(1);
+
+        if (posts.length === 0) {
+          return null;
+        }
+
+        return posts[0];
+      },
+    }),
+
+    recommendedPosts: t.field({
+      type: [Post],
+      resolve: async (post, _, context) => {
+        if (!post.publishedRevisionId) {
+          return [];
+        }
+
+        const [postTagIds, mutedTagIds, mutedSpaceIds, recentlyViewedPostIds] = await Promise.all([
+          database
+            .select({ tagId: PostTags.tagId })
+            .from(PostTags)
+            .where(eq(PostTags.postId, post.id))
+            .then((rows) => rows.map((row) => row.tagId)),
+          getMutedTagIds({ userId: context.session?.userId }),
+          getMutedSpaceIds({ userId: context.session?.userId }),
+          context.session
+            ? database
+                .select({ postId: PostViews.postId })
+                .from(PostViews)
+                .where(eq(PostViews.userId, context.session.userId))
+                .orderBy(desc(PostViews.viewedAt))
+                .limit(50)
+                .then((views) => views.map((view) => view.postId))
+            : [post.id],
+        ]);
+
+        const searchResult = await elasticSearch.search({
+          index: indexName('posts'),
+          query: {
+            function_score: {
+              query: {
+                bool: {
+                  should: [
+                    { terms: { 'tags.id': postTagIds } },
+                    { term: { ['spaceId']: post.spaceId } },
+                    { rank_feature: { field: 'trendingScore' } },
+                  ],
+                  must_not: makeQueryContainers([
+                    {
+                      query: {
+                        terms: { ['tags.id']: mutedTagIds },
+                      },
+                      condition: mutedTagIds.length > 0,
+                    },
+                    {
+                      query: {
+                        terms: { spaceId: mutedSpaceIds },
+                      },
+                      condition: mutedSpaceIds.length > 0,
+                    },
+                    {
+                      query: {
+                        ids: { values: recentlyViewedPostIds },
+                      },
+                    },
+                  ]),
+                },
+              },
+              functions: [
+                {
+                  random_score: { seed: Math.floor(Math.random() * 1000), field: '_seq_no' },
+                },
+              ],
+            },
+          },
+
+          size: 3,
         });
 
-        if (
-          !identity ||
-          (post.ageRating === 'R19' && !isAdulthood(identity.birthday)) ||
-          (post.ageRating === 'R15' && !isGte15(identity.birthday))
-        ) {
+        const posts = await database
+          .select({ id: Posts.id })
+          .from(Posts)
+          .innerJoin(Spaces, eq(Posts.spaceId, Spaces.id))
+          .where(
+            and(
+              inArray(Posts.id, searchResultToIds(searchResult)),
+              eq(Posts.state, 'PUBLISHED'),
+              eq(Posts.visibility, 'PUBLIC'),
+              eq(Spaces.state, 'ACTIVE'),
+              eq(Spaces.visibility, 'PUBLIC'),
+            ),
+          );
+
+        return posts.map((post) => post.id);
+      },
+    }),
+
+    commentCount: t.int({
+      args: { pagination: t.arg.boolean({ defaultValue: false }) },
+      resolve: async (post, { pagination }) => {
+        if (pagination) {
+          const ChildComments = alias(PostComments, 'child');
+
+          return await database
+            .select({ count: count() })
+            .from(PostComments)
+            .where(
+              and(
+                eq(PostComments.postId, post.id),
+                isNull(PostComments.parentId),
+                or(
+                  eq(PostComments.state, 'ACTIVE'),
+                  exists(
+                    database
+                      .select({ id: ChildComments.id })
+                      .from(ChildComments)
+                      .where(and(eq(ChildComments.parentId, PostComments.id), eq(ChildComments.state, 'ACTIVE'))),
+                  ),
+                ),
+              ),
+            )
+            .then(([result]) => result.count);
+        } else {
+          return await database
+            .select({ count: count() })
+            .from(PostComments)
+            .where(and(eq(PostComments.postId, post.id), eq(PostComments.state, 'ACTIVE')))
+            .then(([result]) => result.count);
+        }
+      },
+    }),
+
+    comments: t.field({
+      type: [PostComment],
+      args: {
+        orderBy: t.arg({ type: CommentOrderByKind, defaultValue: 'OLDEST' }),
+        page: t.arg.int({ defaultValue: 1 }),
+        take: t.arg.int({ defaultValue: 5 }),
+      },
+      resolve: async (post, { orderBy, page, take }) => {
+        if (post.commentQualification === 'NONE') {
           return [];
         }
-      }
 
-      if (post.password && post.userId !== context.session?.userId) {
-        const unlock = await redis.hget(`Post:${post.id}:passwordUnlock`, context.deviceId);
-        if (!unlock || dayjs().isAfter(dayjs(unlock))) {
-          return [];
+        const pinnedCommentIds = await database
+          .select({ id: PostComments.id })
+          .from(PostComments)
+          .where(
+            and(
+              eq(PostComments.postId, post.id),
+              eq(PostComments.state, 'ACTIVE'),
+              eq(PostComments.pinned, true),
+              notExists(
+                database
+                  .select({ id: SpaceMasquerades.id })
+                  .from(SpaceMasquerades)
+                  .where(
+                    and(eq(SpaceMasquerades.profileId, PostComments.profileId), isNotNull(SpaceMasquerades.blockedAt)),
+                  ),
+              ),
+            ),
+          )
+          .orderBy(orderBy === 'OLDEST' ? asc(PostComments.createdAt) : desc(PostComments.createdAt))
+          .then((comments) => comments.map((comment) => comment.id));
+
+        const pagedPinnedCommentIds = pinnedCommentIds.slice((page - 1) * take, page * take);
+        if (pagedPinnedCommentIds.length === take) {
+          return pagedPinnedCommentIds;
         }
-      }
 
-      if (post.spaceId) {
-        const spaceMasqueradeLoader = Loader.spaceMasquerade({ db, context });
-        const masquerade = await spaceMasqueradeLoader.load(post.spaceId);
-        if (masquerade?.blockedAt) {
-          return [];
+        const ChildComments = alias(PostComments, 'child');
+
+        const comments = await database
+          .select()
+          .from(PostComments)
+          .where(
+            and(
+              eq(PostComments.postId, post.id),
+              isNull(PostComments.parentId),
+              eq(PostComments.pinned, false),
+              or(
+                eq(PostComments.state, 'ACTIVE'),
+                exists(
+                  database
+                    .select({ id: ChildComments.id })
+                    .from(ChildComments)
+                    .where(and(eq(ChildComments.parentId, PostComments.id), eq(ChildComments.state, 'ACTIVE'))),
+                ),
+              ),
+              notExists(
+                database
+                  .select({ id: SpaceMasquerades.id })
+                  .from(SpaceMasquerades)
+                  .where(
+                    and(eq(SpaceMasquerades.profileId, PostComments.profileId), isNotNull(SpaceMasquerades.blockedAt)),
+                  ),
+              ),
+            ),
+          )
+          .orderBy(orderBy === 'OLDEST' ? asc(PostComments.createdAt) : desc(PostComments.createdAt))
+          .limit(take - pagedPinnedCommentIds.length)
+          .offset(Math.max(0, (page - 1) * take - pinnedCommentIds.length));
+
+        return [...pagedPinnedCommentIds, ...comments];
+      },
+    }),
+
+    purchasedRevision: t.withAuth({ user: true }).field({
+      type: PostRevision,
+      nullable: true,
+      resolve: async (post, _, context) => {
+        return await database
+          .select({ revisionId: PostPurchases.revisionId })
+          .from(PostPurchases)
+          .where(and(eq(PostPurchases.postId, post.id), eq(PostPurchases.userId, context.session.userId)))
+          .then(([purchase]) => purchase?.revisionId);
+      },
+    }),
+  }),
+});
+
+export const PostRevision = createObjectRef('PostRevision', PostRevisions);
+PostRevision.implement({
+  fields: (t) => ({
+    id: t.exposeID('id'),
+    kind: t.expose('kind', { type: PostRevisionKind }),
+    title: t.exposeString('title', { nullable: true }),
+    subtitle: t.exposeString('subtitle', { nullable: true }),
+    price: t.exposeInt('price', { nullable: true }),
+    paragraphIndent: t.exposeInt('paragraphIndent'),
+    paragraphSpacing: t.exposeInt('paragraphSpacing'),
+
+    createdAt: t.expose('createdAt', { type: 'DateTime' }),
+    updatedAt: t.expose('updatedAt', { type: 'DateTime' }),
+
+    editableContent: t.field({
+      type: 'JSON',
+      resolve: async (revision, _, context) => {
+        const loader = context.loader({
+          name: 'PostRevision.editableContent',
+          load: async (ids: string[]) => {
+            return await database
+              .select({ id: PostRevisionContents.id, data: PostRevisionContents.data })
+              .from(PostRevisionContents)
+              .where(inArray(PostRevisionContents.id, ids));
+          },
+          key: (content) => content.id,
+        });
+
+        const [freeContentRaw, paidContentRaw] = await Promise.all([
+          revision.freeContentId ? loader.load(revision.freeContentId) : undefined,
+          revision.paidContentId ? loader.load(revision.paidContentId) : undefined,
+        ]);
+
+        const [freeContent, paidContent] = await Promise.all([
+          freeContentRaw ? decorateContent(freeContentRaw.data as JSONContent[]) : [{ type: 'paragraph' }],
+          paidContentRaw ? decorateContent(paidContentRaw.data as JSONContent[]) : [],
+        ]);
+
+        return createTiptapDocument([
+          ...freeContent,
+          createTiptapNode({ type: 'access_barrier', attrs: { price: revision.price } }),
+          ...(paidContent ?? []),
+        ]);
+      },
+    }),
+
+    content: t.field({
+      type: 'JSON',
+      resolve: async (revision, _, context) => {
+        const [freeContentRaw, paidContentRaw] = await Promise.all([
+          revision.freeContentId
+            ? database
+                .select({ data: PostRevisionContents.data })
+                .from(PostRevisionContents)
+                .where(eq(PostRevisionContents.id, revision.freeContentId))
+                .then((contents) => contents[0]?.data as JSONContent[])
+            : undefined,
+          revision.paidContentId
+            ? database
+                .select({ data: PostRevisionContents.data })
+                .from(PostRevisionContents)
+                .where(eq(PostRevisionContents.id, revision.paidContentId))
+                .then((contents) => contents[0]?.data as JSONContent[])
+            : undefined,
+        ]);
+
+        const [freeContent, paidContent] = await Promise.all([
+          freeContentRaw ? decorateContent(freeContentRaw) : [{ type: 'paragraph' }],
+          paidContentRaw ? decorateContent(paidContentRaw) : null,
+        ]);
+
+        if (!paidContent || paidContent.length === 0) {
+          return createTiptapDocument(freeContent);
         }
-      }
 
-      return ['$postRevision:view'];
-    },
-    fields: (t) => ({
-      id: t.exposeID('id'),
-      kind: t.expose('kind', { type: PrismaEnums.PostRevisionKind }),
-      title: t.exposeString('title', { nullable: true }),
-      subtitle: t.exposeString('subtitle', { nullable: true }),
-      price: t.exposeInt('price', { nullable: true }),
-      paragraphIndent: t.exposeInt('paragraphIndent'),
-      paragraphSpacing: t.exposeInt('paragraphSpacing'),
+        // 유료분이 있음 - 유료분을 볼 수 있는 경우는?
 
-      createdAt: t.expose('createdAt', { type: 'DateTime' }),
-      updatedAt: t.expose('updatedAt', { type: 'DateTime' }),
+        if (context.session) {
+          const post = await database
+            .select()
+            .from(Posts)
+            .where(eq(Posts.id, revision.postId))
+            .then((posts) => posts[0]);
 
-      editableContent: t.field({
-        type: 'JSON',
-        authScopes: { $granted: '$postRevision:edit' },
-        select: { price: true, freeContent: true, paidContent: true },
-        resolve: async (revision, _, { db }) => {
-          const freeContent = revision.freeContent
-            ? await decorateContent(db, revision.freeContent.data as JSONContent[])
-            : [{ type: 'paragraph' }];
-          const paidContent = revision.paidContent
-            ? await decorateContent(db, revision.paidContent.data as JSONContent[])
-            : null;
-
-          return createTiptapDocument([
-            ...freeContent,
-            createTiptapNode({ type: 'access_barrier', attrs: { price: revision.price } }),
-            ...(paidContent ?? []),
-          ]);
-        },
-      }),
-
-      content: t.field({
-        type: 'JSON',
-        authScopes: { $granted: '$postRevision:view' },
-        select: { post: true, freeContent: true, paidContent: true },
-        resolve: async (revision, _, { db, ...context }) => {
-          const freeContent = revision.freeContent
-            ? await decorateContent(db, revision.freeContent.data as JSONContent[])
-            : [{ type: 'paragraph' }];
-          const paidContent = revision.paidContent
-            ? await decorateContent(db, revision.paidContent.data as JSONContent[])
-            : null;
-
-          if (!paidContent || paidContent.length === 0) {
-            return createTiptapDocument(freeContent);
+          if (context.session.userId === post.userId) {
+            // 1. 글 작성자 자신
+            return createTiptapDocument([
+              ...freeContent,
+              createTiptapNode({
+                type: 'access_barrier',
+                attrs: {
+                  price: revision.price,
+                  __data: { purchasable: false },
+                },
+              }),
+              ...paidContent,
+            ]);
           }
 
-          // 유료분이 있음 - 유료분을 볼 수 있는 경우는?
+          if (post.spaceId) {
+            const purchase = await database
+              .select({ createdAt: PostPurchases.createdAt })
+              .from(PostPurchases)
+              .where(and(eq(PostPurchases.postId, post.id), eq(PostPurchases.userId, context.session.userId)))
+              .then(makeNullableArrayElement)
+              .then((purchases) => purchases[0]);
 
-          if (context.session) {
-            if (context.session.userId === revision.post.userId) {
-              // 1. 글 작성자 자신
+            if (purchase) {
+              // 2. 구매한 경우
+              return createTiptapDocument([
+                ...freeContent,
+                createTiptapNode({
+                  type: 'access_barrier',
+                  attrs: {
+                    price: revision.price,
+                    __data: {
+                      purchasable: false,
+                      purchasedAt: dayjs(purchase.createdAt).toISOString(),
+                    },
+                  },
+                }),
+                ...paidContent,
+              ]);
+            }
+
+            const meAsMember = await database
+              .select({ id: SpaceMembers.id })
+              .from(SpaceMembers)
+              .where(and(eq(SpaceMembers.spaceId, post.spaceId), eq(SpaceMembers.userId, context.session.userId)))
+              .then(makeNullableArrayElement)
+              .then((members) => members[0]);
+
+            if (meAsMember) {
+              // 3. 해당 스페이스의 멤버인 경우
               return createTiptapDocument([
                 ...freeContent,
                 createTiptapNode({
@@ -710,398 +797,372 @@ export const postSchema = defineSchema((builder) => {
                 ...paidContent,
               ]);
             }
-
-            if (revision.post.spaceId) {
-              const purchase = await db.postPurchase.findUnique({
-                where: {
-                  postId_userId: {
-                    postId: revision.post.id,
-                    userId: context.session.userId,
-                  },
-                },
-              });
-
-              if (purchase) {
-                // 2. 구매한 경우
-                return createTiptapDocument([
-                  ...freeContent,
-                  createTiptapNode({
-                    type: 'access_barrier',
-                    attrs: {
-                      price: revision.price,
-                      __data: {
-                        purchasable: false,
-                        purchasedAt: dayjs(purchase.createdAt).toISOString(),
-                      },
-                    },
-                  }),
-                  ...paidContent,
-                ]);
-              }
-
-              const isMember = await db.spaceMember.existsUnique({
-                where: {
-                  spaceId_userId: {
-                    spaceId: revision.post.spaceId,
-                    userId: context.session.userId,
-                  },
-                },
-              });
-
-              if (isMember) {
-                // 3. 해당 스페이스의 멤버인 경우
-                return createTiptapDocument([
-                  ...freeContent,
-                  createTiptapNode({
-                    type: 'access_barrier',
-                    attrs: {
-                      price: revision.price,
-                      __data: { purchasable: false },
-                    },
-                  }),
-                  ...paidContent,
-                ]);
-              }
-            }
           }
+        }
 
-          const paidContentText = revision.paidContent ? await revisionContentToText(revision.paidContent) : '';
+        const paidContentText = revision.paidContentId
+          ? await revisionContentToText({ id: revision.paidContentId, data: paidContent })
+          : '';
 
-          let paidContentImageCount = 0,
-            paidContentFileCount = 0;
-          for (const node of paidContent) {
-            // eslint-disable-next-line unicorn/prefer-switch
-            if (node.type === 'image') {
-              paidContentImageCount++;
-            } else if (node.type === 'gallery') {
-              paidContentImageCount += node.attrs?.ids?.length ?? 0;
-            } else if (node.type === 'file') {
-              paidContentFileCount++;
-            }
+        let paidContentImageCount = 0,
+          paidContentFileCount = 0;
+        for (const node of paidContent) {
+          // eslint-disable-next-line unicorn/prefer-switch
+          if (node.type === 'image') {
+            paidContentImageCount++;
+          } else if (node.type === 'gallery') {
+            paidContentImageCount += node.attrs?.ids?.length ?? 0;
+          } else if (node.type === 'file') {
+            paidContentFileCount++;
           }
+        }
 
-          return createTiptapDocument([
-            ...freeContent,
-            createTiptapNode({
-              type: 'access_barrier',
-              attrs: {
-                price: revision.price,
-                __data: {
-                  purchasable: true,
+        return createTiptapDocument([
+          ...freeContent,
+          createTiptapNode({
+            type: 'access_barrier',
+            attrs: {
+              price: revision.price,
+              __data: {
+                purchasable: true,
 
-                  point: context.session ? await getUserPoint({ db, userId: context.session.userId }) : null,
+                point: context.session ? await getUserPoint({ userId: context.session.userId }) : null,
 
-                  postId: revision.post.id,
-                  revisionId: revision.id,
+                postId: revision.postId,
+                revisionId: revision.id,
 
-                  counts: {
-                    characters: paidContentText.length,
-                    images: paidContentImageCount,
-                    files: paidContentFileCount,
-                  },
+                counts: {
+                  characters: paidContentText.length,
+                  images: paidContentImageCount,
+                  files: paidContentFileCount,
                 },
               },
-            }),
-          ]);
-        },
-
-        unauthorizedResolver: () => createTiptapDocument([]),
-      }),
-
-      characterCount: t.field({
-        type: 'Int',
-        authScopes: { $granted: '$postRevision:view' },
-        select: { freeContent: true, paidContent: true },
-        resolve: async (revision) => {
-          const contentText = revision.freeContent ? await revisionContentToText(revision.freeContent) : '';
-          const paidContentText = revision.paidContent ? await revisionContentToText(revision.paidContent) : '';
-          return contentText.length + paidContentText.length;
-        },
-
-        unauthorizedResolver: () => 0,
-      }),
-
-      previewText: t.field({
-        type: 'String',
-        authScopes: { $granted: '$postRevision:view' },
-        select: { freeContent: true },
-        resolve: async (revision) => {
-          const contentText = revision.freeContent ? await revisionContentToText(revision.freeContent) : '';
-          return contentText.slice(0, 200).replaceAll(/\s+/g, ' ');
-        },
-
-        unauthorizedResolver: () => '',
-      }),
-    }),
-  });
-
-  builder.prismaObject('PostReaction', {
-    fields: (t) => ({
-      id: t.exposeID('id'),
-      emoji: t.exposeString('emoji'),
-
-      mine: t.boolean({
-        resolve: async (reaction, _, { ...context }) => {
-          if (!context.session) {
-            return false;
-          }
-
-          return reaction.userId === context.session.userId;
-        },
-      }),
-    }),
-  });
-
-  /**
-   * * Inputs
-   */
-
-  const TagInput = builder.inputType('TagInput', {
-    fields: (t) => ({
-      name: t.string(),
-      kind: t.field({ type: PrismaEnums.PostTagKind }),
-    }),
-  });
-
-  const CreatePostInput = builder.inputType('CreatePostInput', {
-    fields: (t) => ({
-      spaceId: t.id({ required: false }),
-    }),
-  });
-
-  const RevisePostInput = builder.inputType('RevisePostInput', {
-    fields: (t) => ({
-      revisionKind: t.field({ type: PrismaEnums.PostRevisionKind }),
-
-      postId: t.id(),
-
-      title: t.string({ required: false }),
-      subtitle: t.string({ required: false }),
-      content: t.field({ type: 'JSON' }),
-
-      paragraphIndent: t.int(),
-      paragraphSpacing: t.int(),
-    }),
-    validate: { schema: RevisePostInputSchema },
-  });
-
-  const PublishPostInput = builder.inputType('PublishPostInput', {
-    fields: (t) => ({
-      revisionId: t.id(),
-      spaceId: t.id(),
-      collectionId: t.id({ required: false }),
-      thumbnailId: t.id({ required: false }),
-      visibility: t.field({ type: PrismaEnums.PostVisibility }),
-      password: t.string({ required: false }),
-      ageRating: t.field({ type: PrismaEnums.PostAgeRating }),
-      externalSearchable: t.boolean(),
-      discloseStats: t.boolean(),
-      receiveFeedback: t.boolean(),
-      receivePatronage: t.boolean(),
-      receiveTagContribution: t.boolean(),
-      protectContent: t.boolean(),
-      commentQualification: t.field({
-        type: PrismaEnums.PostCommentQualification,
-        required: false,
-        defaultValue: 'ANY',
-      }),
-      category: t.field({ type: PrismaEnums.PostCategory }),
-      pairs: t.field({ type: [PrismaEnums.PostPair], defaultValue: [] }),
-      tags: t.field({ type: [TagInput], defaultValue: [] }),
-    }),
-    validate: { schema: PublishPostInputSchema },
-  });
-
-  const UpdatePostOptionsInput = builder.inputType('UpdatePostOptionsInput', {
-    fields: (t) => ({
-      postId: t.id(),
-      visibility: t.field({ type: PrismaEnums.PostVisibility, required: false }),
-      discloseStats: t.boolean({ required: false }),
-      receiveFeedback: t.boolean({ required: false }),
-      receivePatronage: t.boolean({ required: false }),
-      receiveTagContribution: t.boolean({ required: false }),
-    }),
-  });
-
-  const UpdatePostTagsInput = builder.inputType('UpdatePostTagsInput', {
-    fields: (t) => ({
-      postId: t.id(),
-      category: t.field({ type: PrismaEnums.PostCategory }),
-      pairs: t.field({ type: [PrismaEnums.PostPair] }),
-      tags: t.field({ type: [TagInput] }),
-    }),
-  });
-
-  const DeletePostInput = builder.inputType('DeletePostInput', {
-    fields: (t) => ({
-      postId: t.id(),
-    }),
-  });
-
-  const LikePostInput = builder.inputType('LikePostInput', {
-    fields: (t) => ({
-      postId: t.id(),
-    }),
-  });
-
-  const UnlikePostInput = builder.inputType('UnlikePostInput', {
-    fields: (t) => ({
-      postId: t.id(),
-    }),
-  });
-
-  const PurchasePostInput = builder.inputType('PurchasePostInput', {
-    fields: (t) => ({
-      postId: t.id(),
-      revisionId: t.id(),
-    }),
-  });
-
-  const UpdatePostViewInput = builder.inputType('UpdatePostViewInput', {
-    fields: (t) => ({
-      postId: t.id(),
-    }),
-  });
-
-  const CreatePostReactionInput = builder.inputType('CreatePostReactionInput', {
-    fields: (t) => ({
-      postId: t.id(),
-      emoji: t.string(),
-    }),
-  });
-
-  const DeletePostReactionInput = builder.inputType('DeletePostReactionInput', {
-    fields: (t) => ({
-      postId: t.id(),
-      emoji: t.string(),
-    }),
-  });
-
-  const UnlockPasswordedPostInput = builder.inputType('UnlockPasswordedPostInput', {
-    fields: (t) => ({
-      postId: t.id(),
-      password: t.string(),
-    }),
-  });
-
-  const GeneratePostShareImageInput = builder.inputType('GeneratePostShareImageInput', {
-    fields: (t) => ({
-      title: t.string(),
-      space: t.string(),
-      body: t.string(),
-      font: t.string(), // Pretendard, RIDIBatang
-      size: t.string(), // small, medium, large
-      color: t.string(), // hex code
-      background: t.string(), // hex code
-    }),
-  });
-
-  /**
-   * * Queries
-   */
-
-  builder.queryFields((t) => ({
-    post: t.prismaField({
-      type: 'Post',
-      args: { permalink: t.arg.string() },
-      resolve: async (query, _, args, { db, ...context }) => {
-        const post = await db.post.findUnique({
-          include: { space: true },
-          where: { permalink: args.permalink },
-        });
-
-        if (!post) {
-          throw new NotFoundError();
-        }
-
-        if (post.userId !== context.session?.userId || post.state === 'DELETED') {
-          if (!post.space) {
-            throw new NotFoundError();
-          }
-          if (
-            post.space.state === 'INACTIVE' ||
-            post.space.visibility === 'PRIVATE' ||
-            post.state === 'DRAFT' ||
-            post.visibility === 'SPACE' ||
-            post.state === 'DELETED'
-          ) {
-            if (!context.session) {
-              throw new PermissionDeniedError();
-            }
-
-            const member =
-              post.state === 'DELETED'
-                ? null
-                : await db.spaceMember.findUnique({
-                    where: {
-                      spaceId_userId: {
-                        spaceId: post.space.id,
-                        userId: context.session.userId,
-                      },
-                      state: 'ACTIVE',
-                    },
-                  });
-
-            if (!member || (post.state === 'DRAFT' && member.role !== 'ADMIN')) {
-              const purchase = await db.postPurchase.exists({
-                where: {
-                  postId: post.id,
-                  userId: context.session.userId,
-                },
-              });
-
-              if (!purchase) {
-                throw new PermissionDeniedError();
-              }
-            }
-          }
-        }
-
-        return await db.post.findUniqueOrThrow({
-          ...query,
-          where: { id: post.id },
-        });
+            },
+          }),
+        ]);
       },
     }),
 
-    // draftRevision: t.withAuth({ user: true }).prismaField({
-    //   type: 'PostRevision',
-    //   args: { revisionId: t.arg.id() },
-    //   resolve: async (query, _, args, { db, ...context }) =>
-    //     // TODO: 어드민도 접근할 수 있게 권한 체크 추가
-    //     db.postRevision.findUniqueOrThrow({
-    //       ...query,
-    //       where: {
-    //         id: args.revisionId,
-    //         userId: context.session.userId,
-    //       },
-    //     }),
-    // }),
-  }));
+    characterCount: t.int({
+      resolve: async (revision, _, context) => {
+        const loader = context.loader({
+          name: 'PostRevision.characterCount',
+          load: async (ids: string[]) => {
+            return await database
+              .select({ id: PostRevisionContents.id, data: PostRevisionContents.data })
+              .from(PostRevisionContents)
+              .where(inArray(PostRevisionContents.id, ids));
+          },
+          key: (content) => content.id,
+        });
 
-  /**
-   * * Mutations
-   */
+        const [freeContentLength, paidContentLength] = await Promise.all([
+          revision.freeContentId
+            ? loader
+                .load(revision.freeContentId)
+                .then((content) => revisionContentToText(content))
+                .then((contentText) => contentText.length)
+            : 0,
+          revision.paidContentId
+            ? loader
+                .load(revision.paidContentId)
+                .then((content) => revisionContentToText(content))
+                .then((contentText) => contentText.length)
+            : 0,
+        ]);
 
-  builder.mutationFields((t) => ({
-    createPost: t.withAuth({ user: true }).prismaField({
-      type: 'Post',
-      args: { input: t.arg({ type: CreatePostInput }) },
-      resolve: async (query, _, { input }, { db, ...context }) => {
-        let permalink: string;
+        return freeContentLength + paidContentLength;
+      },
+    }),
 
-        for (;;) {
-          permalink = base36To10(cuid({ length: 6 })());
-          const exists = await db.post.exists({ where: { permalink } });
-          if (!exists) {
-            break;
-          }
+    previewText: t.string({
+      resolve: async (revision, _, context) => {
+        const loader = context.loader({
+          name: 'PostRevision.previewText',
+          load: async (ids: string[]) => {
+            return await database
+              .select({ id: PostRevisionContents.id, data: PostRevisionContents.data })
+              .from(PostRevisionContents)
+              .where(inArray(PostRevisionContents.id, ids));
+          },
+          key: (content) => content.id,
+        });
+
+        const contentText = revision.freeContentId
+          ? await loader.load(revision.freeContentId).then((content) => revisionContentToText(content))
+          : '';
+
+        return contentText.slice(0, 200).replaceAll(/\s+/g, ' ');
+      },
+    }),
+  }),
+});
+
+export const PostReaction = createObjectRef('PostReaction', PostReactions);
+PostReaction.implement({
+  fields: (t) => ({
+    id: t.exposeID('id'),
+    emoji: t.exposeString('emoji'),
+
+    mine: t.boolean({
+      resolve: (reaction, _, { ...context }) => {
+        if (!context.session) {
+          return false;
         }
 
-        return await db.post.create({
-          ...query,
-          data: {
-            id: createId(),
+        return reaction.userId === context.session.userId;
+      },
+    }),
+  }),
+});
+
+/**
+ * * Inputs
+ */
+
+const TagInput = builder.inputType('TagInput', {
+  fields: (t) => ({
+    name: t.string(),
+    kind: t.field({ type: PostTagKind }),
+  }),
+});
+
+const CreatePostInput = builder.inputType('CreatePostInput', {
+  fields: (t) => ({
+    spaceId: t.id({ required: false }),
+  }),
+});
+
+const RevisePostInput = builder.inputType('RevisePostInput', {
+  fields: (t) => ({
+    revisionKind: t.field({ type: PostRevisionKind }),
+
+    postId: t.id(),
+
+    title: t.string({ required: false }),
+    subtitle: t.string({ required: false }),
+    content: t.field({ type: 'JSON' }),
+
+    paragraphIndent: t.int(),
+    paragraphSpacing: t.int(),
+  }),
+  validate: { schema: RevisePostInputSchema },
+});
+
+const PublishPostInput = builder.inputType('PublishPostInput', {
+  fields: (t) => ({
+    revisionId: t.id(),
+    spaceId: t.id(),
+    collectionId: t.id({ required: false }),
+    thumbnailId: t.id({ required: false }),
+    visibility: t.field({ type: PostVisibility }),
+    password: t.string({ required: false }),
+    ageRating: t.field({ type: PostAgeRating }),
+    externalSearchable: t.boolean(),
+    discloseStats: t.boolean(),
+    receiveFeedback: t.boolean(),
+    receivePatronage: t.boolean(),
+    receiveTagContribution: t.boolean(),
+    protectContent: t.boolean(),
+    commentQualification: t.field({
+      type: PostCommentQualification,
+      required: false,
+      defaultValue: 'ANY',
+    }),
+    category: t.field({ type: PostCategory }),
+    pairs: t.field({ type: [PostPair], defaultValue: [] }),
+    tags: t.field({ type: [TagInput], defaultValue: [] }),
+  }),
+  validate: { schema: PublishPostInputSchema },
+});
+
+const UpdatePostOptionsInput = builder.inputType('UpdatePostOptionsInput', {
+  fields: (t) => ({
+    postId: t.id(),
+    visibility: t.field({ type: PostVisibility, required: false }),
+    discloseStats: t.boolean({ required: false }),
+    receiveFeedback: t.boolean({ required: false }),
+    receivePatronage: t.boolean({ required: false }),
+    receiveTagContribution: t.boolean({ required: false }),
+  }),
+});
+
+const UpdatePostTagsInput = builder.inputType('UpdatePostTagsInput', {
+  fields: (t) => ({
+    postId: t.id(),
+    category: t.field({ type: PostCategory }),
+    pairs: t.field({ type: [PostPair] }),
+    tags: t.field({ type: [TagInput] }),
+  }),
+});
+
+const DeletePostInput = builder.inputType('DeletePostInput', {
+  fields: (t) => ({
+    postId: t.id(),
+  }),
+});
+
+const LikePostInput = builder.inputType('LikePostInput', {
+  fields: (t) => ({
+    postId: t.id(),
+  }),
+});
+
+const UnlikePostInput = builder.inputType('UnlikePostInput', {
+  fields: (t) => ({
+    postId: t.id(),
+  }),
+});
+
+const PurchasePostInput = builder.inputType('PurchasePostInput', {
+  fields: (t) => ({
+    postId: t.id(),
+    revisionId: t.id(),
+  }),
+});
+
+const UpdatePostViewInput = builder.inputType('UpdatePostViewInput', {
+  fields: (t) => ({
+    postId: t.id(),
+  }),
+});
+
+const CreatePostReactionInput = builder.inputType('CreatePostReactionInput', {
+  fields: (t) => ({
+    postId: t.id(),
+    emoji: t.string(),
+  }),
+});
+
+const DeletePostReactionInput = builder.inputType('DeletePostReactionInput', {
+  fields: (t) => ({
+    postId: t.id(),
+    emoji: t.string(),
+  }),
+});
+
+const UnlockPasswordedPostInput = builder.inputType('UnlockPasswordedPostInput', {
+  fields: (t) => ({
+    postId: t.id(),
+    password: t.string(),
+  }),
+});
+
+const GeneratePostShareImageInput = builder.inputType('GeneratePostShareImageInput', {
+  fields: (t) => ({
+    title: t.string(),
+    space: t.string(),
+    body: t.string(),
+    font: t.string(), // Pretendard, RIDIBatang
+    size: t.string(), // small, medium, large
+    color: t.string(), // hex code
+    background: t.string(), // hex code
+  }),
+});
+
+/**
+ * * Queries
+ */
+
+builder.queryFields((t) => ({
+  post: t.field({
+    type: Post,
+    args: { permalink: t.arg.string() },
+    resolve: async (_, args, context) => {
+      const posts = await database
+        .select({
+          id: Posts.id,
+          userId: Posts.userId,
+          visibility: Posts.visibility,
+          state: Posts.state,
+          space: { id: Spaces.id, visibility: Spaces.visibility, state: Spaces.state },
+        })
+        .from(Posts)
+        .innerJoin(Spaces, eq(Posts.spaceId, Spaces.id))
+        .where(and(eq(Posts.permalink, args.permalink), ne(Posts.state, 'DELETED'), eq(Spaces.state, 'ACTIVE')));
+
+      if (posts.length === 0) {
+        throw new NotFoundError();
+      }
+
+      const [post] = posts;
+
+      if (post.space.visibility === 'PRIVATE' || post.visibility === 'SPACE') {
+        const meAsMember = await getSpaceMember(context, post.space.id);
+        if (!meAsMember) {
+          throw new PermissionDeniedError();
+        }
+      }
+
+      return post.id;
+    },
+  }),
+
+  draftPost: t.withAuth({ user: true }).field({
+    type: Post,
+    args: { permalink: t.arg.string() },
+    resolve: async (_, args, context) => {
+      const posts = await database
+        .select({
+          id: Posts.id,
+          userId: Posts.userId,
+          visibility: Posts.visibility,
+          state: Posts.state,
+          space: { id: Spaces.id, visibility: Spaces.visibility, state: Spaces.state },
+        })
+        .from(Posts)
+        .leftJoin(Spaces, eq(Posts.spaceId, Spaces.id))
+        .where(
+          and(
+            eq(Posts.permalink, args.permalink),
+            ne(Posts.state, 'DELETED'),
+            or(eq(Spaces.state, 'ACTIVE'), isNull(Spaces.id)),
+          ),
+        );
+
+      if (posts.length === 0) {
+        throw new NotFoundError();
+      }
+
+      const [post] = posts;
+
+      if (post.space && post.userId !== context.session.userId) {
+        const meAsMember = await getSpaceMember(context, post.space.id);
+        if (meAsMember?.role !== 'ADMIN') {
+          throw new PermissionDeniedError();
+        }
+      }
+
+      return post.id;
+    },
+  }),
+}));
+
+/**
+ * * Mutations
+ */
+
+builder.mutationFields((t) => ({
+  createPost: t.withAuth({ user: true }).field({
+    type: Post,
+    args: { input: t.arg({ type: CreatePostInput }) },
+    resolve: async (_, { input }, context) => {
+      let permalink;
+
+      // eslint-disable-next-line no-constant-condition
+      while (true) {
+        permalink = base36To10(cuid({ length: 6 })());
+
+        const posts = await database.select({ id: Posts.id }).from(Posts).where(eq(Posts.permalink, permalink));
+        if (posts.length === 0) {
+          break;
+        }
+      }
+
+      return await database.transaction(async (tx) => {
+        const [post] = await tx
+          .insert(Posts)
+          .values({
             permalink,
             userId: context.session.userId,
             spaceId: input.spaceId,
@@ -1112,299 +1173,225 @@ export const postSchema = defineSchema((builder) => {
             receivePatronage: true,
             receiveTagContribution: true,
             protectContent: true,
-            revisions: {
-              create: {
-                id: createId(),
-                userId: context.session.userId,
-                kind: 'AUTO_SAVE',
-              },
-            },
-          },
-        });
-      },
-    }),
+          })
+          .returning({ id: Posts.id });
 
-    revisePost: t.withAuth({ user: true }).prismaField({
-      type: 'Post',
-      args: { input: t.arg({ type: RevisePostInput }) },
-      resolve: async (query, _, { input }, { db, ...context }) => {
-        const post = await db.post.findUniqueOrThrow({
-          where: {
-            id: input.postId,
-            state: { not: 'DELETED' },
-          },
-        });
-
-        if (post.userId !== context.session.userId) {
-          if (!post.spaceId) {
-            throw new NotFoundError();
-          }
-
-          const meAsMember = await db.spaceMember.findUniqueOrThrow({
-            where: {
-              spaceId_userId: {
-                spaceId: post.spaceId,
-                userId: context.session.userId,
-              },
-            },
-          });
-
-          if (meAsMember.role !== 'ADMIN') {
-            throw new NotFoundError();
-          }
-        }
-
-        let document = (input.content as JSONContent).content;
-
-        if (!document || !validateTiptapDocument(input.content)) {
-          throw new FormValidationError('content', '잘못된 내용이에요');
-        }
-
-        const lastRevision = input.postId
-          ? await db.postRevision.findFirst({
-              include: { freeContent: true, paidContent: true },
-              where: { postId: input.postId },
-              orderBy: { createdAt: 'desc' },
-            })
-          : undefined;
-
-        document = await sanitizeContent(document);
-
-        const accessBarrierPosition = document.findIndex((node) => node.type === 'access_barrier');
-        const accessBarrier = document[accessBarrierPosition];
-        const freeContentData = document.slice(0, accessBarrierPosition);
-        const paidContentData = document.slice(accessBarrierPosition + 1);
-
-        const freeContent = isEmptyContent(freeContentData)
-          ? null
-          : await revisePostContent({ db, contentData: freeContentData });
-        const paidContent = isEmptyContent(paidContentData)
-          ? null
-          : await revisePostContent({ db, contentData: paidContentData });
-        const price: number | null = paidContent ? accessBarrier.attrs?.price ?? null : null;
-
-        const revisionData = {
+        await tx.insert(PostRevisions).values({
+          postId: post.id,
           userId: context.session.userId,
-          kind: input.revisionKind,
-          title: input.title?.length ? input.title : null,
-          subtitle: input.subtitle?.length ? input.subtitle : null,
-          freeContentId: freeContent?.id ?? null,
-          paidContentId: paidContent?.id ?? null,
-          price,
-          paragraphIndent: input.paragraphIndent,
-          paragraphSpacing: input.paragraphSpacing,
-        } as const;
-
-        /// 여기까지 데이터 가공 단계
-        /// 여기부터 포스트 수정 단계
-
-        // 2. 리비전 생성/재사용
-
-        let revisionId = createId();
-
-        const checkContentLengthDiff = async () => {
-          if (!lastRevision) return 0;
-          const lastRevisionContentLength =
-            (lastRevision.freeContent ? await revisionContentToText(lastRevision.freeContent) : '').length +
-            (lastRevision.paidContent ? await revisionContentToText(lastRevision.paidContent) : '').length;
-          const currentContentLength =
-            (freeContent ? await revisionContentToText(freeContent) : '').length +
-            (paidContent ? await revisionContentToText(paidContent) : '').length;
-
-          return Math.abs(lastRevisionContentLength - currentContentLength);
-        };
-
-        if (
-          lastRevision &&
-          lastRevision.kind === 'AUTO_SAVE' &&
-          dayjs(lastRevision.createdAt).add(1, 'minutes').isAfter(dayjs()) &&
-          (await checkContentLengthDiff()) < 100
-        ) {
-          await db.postRevision.update({
-            where: { id: lastRevision.id },
-            data: {
-              ...revisionData,
-              updatedAt: new Date(),
-            },
-          });
-          revisionId = lastRevision.id;
-
-          // dangling PostContent 삭제
-          if (lastRevision.freeContentId) {
-            const freeContentReference = await db.postRevision.exists({
-              where: {
-                OR: [{ freeContentId: lastRevision.freeContentId }, { paidContentId: lastRevision.freeContentId }],
-              },
-            });
-
-            if (!freeContentReference) {
-              try {
-                await db.postRevisionContent.delete({
-                  where: { id: lastRevision.freeContentId },
-                });
-              } catch {
-                // pass
-              }
-            }
-          }
-
-          if (lastRevision.paidContentId) {
-            const paidContentReference = await db.postRevision.exists({
-              where: {
-                OR: [{ freeContentId: lastRevision.paidContentId }, { paidContentId: lastRevision.paidContentId }],
-              },
-            });
-
-            if (!paidContentReference) {
-              try {
-                await db.postRevisionContent.delete({
-                  where: { id: lastRevision.paidContentId },
-                });
-              } catch {
-                // pass
-              }
-            }
-          }
-        } else {
-          await db.postRevision.create({
-            data: {
-              id: revisionId,
-              postId: input.postId,
-              ...revisionData,
-            },
-          });
-        }
-
-        /// 게시글에 수정된 부분이 있을 경우 포스트 상태를 DRAFT로 변경
-        if (
-          post.state === 'EPHEMERAL' &&
-          (input.title?.length || input.subtitle?.length || freeContent || paidContent)
-        ) {
-          await db.post.update({
-            where: { id: input.postId },
-            data: { state: 'DRAFT' },
-          });
-        }
-
-        /// 여기까지 포스트 생성/수정 단계
-
-        return await db.post.findUniqueOrThrow({
-          ...query,
-          where: { id: input.postId },
-        });
-      },
-    }),
-
-    publishPost: t.withAuth({ user: true }).prismaField({
-      type: 'Post',
-      args: { input: t.arg({ type: PublishPostInput }) },
-      resolve: async (query, _, { input }, { db, ...context }) => {
-        const revision = await db.postRevision.update({
-          include: { post: true, freeContent: true, paidContent: true },
-          where: {
-            id: input.revisionId,
-            post: {
-              state: { not: 'DELETED' },
-            },
-          },
-          data: { kind: 'PUBLISHED' },
+          kind: 'AUTO_SAVE',
         });
 
-        if (revision.post.state === 'PUBLISHED' && revision.post.spaceId && revision.post.spaceId !== input.spaceId) {
-          throw new IntentionalError('발행된 포스트의 스페이스를 변경할 수 없어요');
-        }
+        return post.id;
+      });
+    },
+  }),
 
-        const meAsMember = await db.spaceMember.findUnique({
-          where: {
-            spaceId_userId: {
-              spaceId: input.spaceId,
-              userId: context.session.userId,
-            },
-            state: 'ACTIVE',
-          },
-        });
-
-        if (!meAsMember || (revision.userId !== context.session.userId && meAsMember.role !== 'ADMIN')) {
-          throw new PermissionDeniedError();
-        }
-
-        if (input.ageRating !== 'ALL') {
-          const identity = await db.userPersonalIdentity.findUnique({
-            where: { userId: context.session.userId },
-          });
-
-          if (
-            !identity ||
-            (input.ageRating === 'R19' && !isAdulthood(identity.birthday)) ||
-            (input.ageRating === 'R15' && !isGte15(identity.birthday))
-          ) {
-            throw new IntentionalError('본인인증을 하지 않으면 연령 제한 컨텐츠를 게시할 수 없어요');
-          }
-        }
-
-        if (revision.paidContent) {
-          if (revision.price === null) {
-            if ((revision.paidContent.data as JSONContent[] | undefined)?.length === 0) {
-              await db.postRevision.update({
-                where: { id: input.revisionId },
-                data: { paidContentId: null },
-              });
-            } else {
-              throw new IntentionalError('가격을 설정해주세요');
-            }
-          } else {
-            if (revision.price <= 0 || revision.price > 1_000_000 || revision.price % 100 !== 0) {
-              throw new IntentionalError('잘못된 가격이에요');
-            }
-          }
-        }
-
-        const password = await match(input.password)
-          .with('', () => revision.post.password)
-          .with(P.string, (password) => hash(password))
-          .with(P.nullish, () => null)
-          .exhaustive();
-
-        if (input.password) {
-          await redis.del(`Post:${revision.post.id}:passwordUnlock`);
-        }
-
-        const postTags = await Promise.all(
-          (input.tags ?? []).map((tag) =>
-            db.tag.upsert({
-              where: { name: tag.name },
-              create: {
-                id: createId(),
-                name: tag.name,
-              },
-              update: {},
-            }),
+  revisePost: t.withAuth({ user: true }).field({
+    type: Post,
+    args: { input: t.arg({ type: RevisePostInput }) },
+    resolve: async (_, { input }, context) => {
+      const posts = await database
+        .select({ userId: Posts.userId, spaceId: Posts.spaceId, state: Posts.state })
+        .from(Posts)
+        .leftJoin(Spaces, eq(Spaces.id, Posts.spaceId))
+        .where(
+          and(
+            eq(Posts.id, input.postId),
+            ne(Posts.state, 'DELETED'),
+            or(eq(Spaces.state, 'ACTIVE'), isNull(Spaces.id)),
           ),
         );
 
-        await db.postRevision.updateMany({
-          where: {
-            postId: revision.post.id,
-            kind: 'PUBLISHED',
-            id: { not: revision.id },
-          },
-          data: { kind: 'ARCHIVED' },
-        });
+      if (posts.length === 0) {
+        throw new NotFoundError();
+      }
 
-        const post = await db.post.update({
-          include: {
-            tags: { include: { tag: true } },
-            publishedRevision: true,
-            space: true,
-            collectionPost: true,
-          },
-          where: { id: revision.post.id },
-          data: {
+      const [post] = posts;
+
+      if (post.userId !== context.session.userId) {
+        if (!post.spaceId) {
+          throw new PermissionDeniedError();
+        }
+
+        const meAsMember = await getSpaceMember(context, post.spaceId);
+        if (meAsMember?.role !== 'ADMIN') {
+          throw new PermissionDeniedError();
+        }
+      }
+
+      let document = (input.content as JSONContent).content;
+
+      if (!document || !validateTiptapDocument(input.content)) {
+        throw new FormValidationError('content', '잘못된 내용이에요');
+      }
+
+      const FreeContents = alias(PostRevisionContents, 'a1');
+      const PaidContents = alias(PostRevisionContents, 'a2');
+
+      const revisions = await database
+        .select({ id: PostRevisions.id, kind: PostRevisions.kind, createdAt: PostRevisions.createdAt })
+        .from(PostRevisions)
+        .leftJoin(FreeContents, eq(FreeContents.id, PostRevisions.freeContentId))
+        .leftJoin(PaidContents, eq(PaidContents.id, PostRevisions.paidContentId))
+        .where(eq(PostRevisions.postId, input.postId))
+        .orderBy(desc(PostRevisions.createdAt))
+        .limit(1);
+
+      if (revisions.length === 0) {
+        throw new NotFoundError();
+      }
+
+      const [revision] = revisions;
+
+      document = await sanitizeContent(document);
+
+      const accessBarrierPosition = document.findIndex((node) => node.type === 'access_barrier');
+      const accessBarrier = document[accessBarrierPosition];
+      const freeContentData = document.slice(0, accessBarrierPosition);
+      const paidContentData = document.slice(accessBarrierPosition + 1);
+
+      const freeContentId = await makePostContentId(freeContentData);
+      const paidContentId = await makePostContentId(paidContentData);
+      const price: number | null = paidContentId ? accessBarrier.attrs?.price ?? null : null;
+
+      const revisionData: typeof PostRevisions.$inferInsert = {
+        postId: input.postId,
+        userId: context.session.userId,
+        kind: input.revisionKind,
+        title: input.title?.length ? input.title : null,
+        subtitle: input.subtitle?.length ? input.subtitle : null,
+        freeContentId,
+        paidContentId,
+        price,
+        paragraphIndent: input.paragraphIndent,
+        paragraphSpacing: input.paragraphSpacing,
+        updatedAt: dayjs(),
+      };
+
+      await (revision.kind === 'AUTO_SAVE' && revision.createdAt.isAfter(dayjs().subtract(1, 'minute'))
+        ? database.update(PostRevisions).set(revisionData).where(eq(PostRevisions.id, revision.id))
+        : database.insert(PostRevisions).values(revisionData));
+
+      /// 게시글에 수정된 부분이 있을 경우 포스트 상태를 DRAFT로 변경
+      if (
+        post.state === 'EPHEMERAL' &&
+        (input.title?.length || input.subtitle?.length || freeContentId || paidContentId)
+      ) {
+        await database.update(Posts).set({ state: 'DRAFT' }).where(eq(Posts.id, input.postId));
+      }
+
+      return input.postId;
+    },
+  }),
+
+  publishPost: t.withAuth({ user: true }).field({
+    type: Post,
+    args: { input: t.arg({ type: PublishPostInput }) },
+    resolve: async (_, { input }, context) => {
+      const revisions = await database
+        .select({
+          userId: PostRevisions.userId,
+          paidContentId: PostRevisions.paidContentId,
+          price: PostRevisions.price,
+          post: { id: Posts.id, state: Posts.state },
+          space: { id: Spaces.id },
+          collectionPost: { id: SpaceCollectionPosts.id, collectionId: SpaceCollectionPosts.collectionId },
+        })
+        .from(PostRevisions)
+        .innerJoin(Posts, eq(Posts.id, PostRevisions.postId))
+        .leftJoin(Spaces, eq(Spaces.id, Posts.spaceId))
+        .leftJoin(SpaceCollectionPosts, eq(SpaceCollectionPosts.postId, Posts.id))
+        .where(
+          and(
+            eq(PostRevisions.id, input.revisionId),
+            ne(Posts.state, 'DELETED'),
+            or(eq(Spaces.state, 'ACTIVE'), isNull(Spaces.id)),
+          ),
+        );
+
+      if (revisions.length === 0) {
+        throw new NotFoundError();
+      }
+
+      const [revision] = revisions;
+
+      if (revision.post.state === 'PUBLISHED' && revision.space?.id !== input.spaceId) {
+        throw new IntentionalError('발행된 포스트의 스페이스를 변경할 수 없어요');
+      }
+
+      const meAsMember = await getSpaceMember(context, input.spaceId);
+      if (!meAsMember) {
+        throw new PermissionDeniedError();
+      }
+
+      if (revision.userId !== context.session.userId && meAsMember.role !== 'ADMIN') {
+        throw new PermissionDeniedError();
+      }
+
+      if (input.ageRating !== 'ALL') {
+        const identities = await database
+          .select({ birthday: UserPersonalIdentities.birthday })
+          .from(UserPersonalIdentities)
+          .where(eq(UserPersonalIdentities.userId, context.session.userId));
+
+        if (
+          identities.length === 0 ||
+          (input.ageRating === 'R19' && !isAdulthood(identities[0].birthday)) ||
+          (input.ageRating === 'R15' && !isGte15(identities[0].birthday))
+        ) {
+          throw new IntentionalError('본인인증을 하지 않으면 연령 제한 컨텐츠를 게시할 수 없어요');
+        }
+      }
+
+      if (revision.paidContentId) {
+        if (revision.price === null) {
+          throw new IntentionalError('가격을 설정해주세요');
+        } else {
+          if (revision.price <= 0 || revision.price > 1_000_000 || revision.price % 100 !== 0) {
+            throw new IntentionalError('잘못된 가격이에요');
+          }
+        }
+      }
+
+      const password = await match(input.password)
+        .with('', () => undefined)
+        .with(P.string, (password) => hash(password))
+        .with(P.nullish, () => null)
+        .exhaustive();
+
+      if (input.password) {
+        await redis.del(`Post:${revision.post.id}:passwordUnlock`);
+      }
+
+      await database.transaction(async (tx) => {
+        await tx.update(PostRevisions).set({ kind: 'PUBLISHED' }).where(eq(PostRevisions.id, input.revisionId));
+        await tx
+          .update(PostRevisions)
+          .set({ kind: 'ARCHIVED' })
+          .where(
+            and(
+              eq(PostRevisions.postId, revision.post.id),
+              eq(PostRevisions.kind, 'PUBLISHED'),
+              ne(PostRevisions.id, input.revisionId),
+            ),
+          );
+
+        await tx.delete(PostTags).where(eq(PostTags.postId, revision.post.id));
+
+        for (const { name, kind } of input.tags) {
+          const [tag] = await tx.insert(Tags).values({ name }).onConflictDoNothing().returning({ id: Tags.id });
+          await tx.insert(PostTags).values({ postId: revision.post.id, tagId: tag.id, kind });
+        }
+
+        await tx
+          .update(Posts)
+          .set({
+            state: 'PUBLISHED',
             spaceId: input.spaceId,
             memberId: meAsMember.id,
-            state: 'PUBLISHED',
-            publishedAt: revision.post.publishedAt ?? new Date(),
-            publishedRevisionId: revision.id,
+            publishedAt: revision.post.state === 'PUBLISHED' ? undefined : dayjs(),
+            publishedRevisionId: input.revisionId,
             visibility: input.visibility,
             ageRating: input.ageRating,
             thumbnailId: input.thumbnailId ?? null,
@@ -1418,466 +1405,364 @@ export const postSchema = defineSchema((builder) => {
             password,
             category: input.category,
             pairs: input.pairs,
-            tags: {
-              deleteMany: {},
-              createMany: {
-                data: input.tags.map(({ name, kind }) => ({
-                  id: createId(),
-                  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                  tagId: postTags.find((tag) => tag.name === name)!.id,
-                  kind,
-                })),
-              },
-            },
-          },
-        });
+          })
+          .where(eq(Posts.id, revision.post.id));
 
-        if (input.collectionId) {
-          if (post.collectionPost?.collectionId !== input.collectionId) {
-            if (post.collectionPost) {
-              await db.spaceCollectionPost.delete({
-                where: {
-                  postId: post.id,
-                },
-              });
-            }
-
-            const targetCollectionAggregation = await db.spaceCollectionPost.aggregate({
-              where: {
-                collectionId: input.collectionId,
-              },
-              _max: {
-                order: true,
-              },
-            });
-
-            const order = targetCollectionAggregation._max.order ?? -1;
-
-            await db.spaceCollectionPost.create({
-              data: {
-                id: createId(),
-                postId: post.id,
-                collectionId: input.collectionId,
-                order: order + 1,
-              },
-            });
-          }
-        } else {
-          await db.spaceCollectionPost.deleteMany({
-            where: {
-              postId: post.id,
-            },
-          });
+        if (revision.collectionPost && (!input.collectionId || input.collectionId !== revision.collectionPost.id)) {
+          await tx.delete(SpaceCollectionPosts).where(eq(SpaceCollectionPosts.postId, revision.post.id));
+          await defragmentSpaceCollectionPosts(tx, revision.collectionPost.collectionId);
         }
 
-        await indexPost(post);
-        return db.post.findUniqueOrThrow({
-          ...query,
-          where: { id: post.id },
-        });
-      },
-    }),
+        if (input.collectionId && (!revision.collectionPost || input.collectionId !== revision.collectionPost.id)) {
+          await tx
+            .insert(SpaceCollectionPosts)
+            .values({ collectionId: input.collectionId, postId: revision.post.id, order: 2_147_483_647 });
+          await defragmentSpaceCollectionPosts(tx, input.collectionId);
+        }
+      });
 
-    updatePostOptions: t.withAuth({ user: true }).prismaField({
-      type: 'Post',
-      args: { input: t.arg({ type: UpdatePostOptionsInput }) },
-      resolve: async (query, _, { input }, { db, ...context }) => {
-        const post = await db.post.update({
-          include: {
-            tags: { include: { tag: true } },
-            publishedRevision: true,
-            space: true,
-          },
-          where: {
-            id: input.postId,
-            OR: [
-              { userId: context.session.userId },
-              { space: { members: { some: { userId: context.session.userId, role: 'ADMIN', state: 'ACTIVE' } } } },
-            ],
-          },
+      return revision.post.id;
+    },
+  }),
 
-          data: {
-            visibility: input.visibility ?? undefined,
-            discloseStats: input.discloseStats ?? undefined,
-            receiveFeedback: input.receiveFeedback ?? undefined,
-            receivePatronage: input.receivePatronage ?? undefined,
-            receiveTagContribution: input.receiveTagContribution ?? undefined,
-          },
-        });
+  updatePostOptions: t.withAuth({ user: true }).field({
+    type: Post,
+    args: { input: t.arg({ type: UpdatePostOptionsInput }) },
+    resolve: async (_, { input }, context) => {
+      const posts = await database
+        .select({ userId: Posts.userId, space: { id: Spaces.id } })
+        .from(Posts)
+        .innerJoin(Spaces, eq(Spaces.id, Posts.spaceId))
+        .where(and(eq(Posts.id, input.postId), eq(Posts.state, 'PUBLISHED'), eq(Spaces.state, 'ACTIVE')));
 
-        await indexPost(post);
+      if (posts.length === 0) {
+        throw new NotFoundError();
+      }
 
-        return db.post.findUniqueOrThrow({
-          ...query,
-          where: { id: post.id },
-        });
-      },
-    }),
+      const [post] = posts;
 
-    updatePostTags: t.withAuth({ user: true }).prismaField({
-      type: 'Post',
-      args: { input: t.arg({ type: UpdatePostTagsInput }) },
-      resolve: async (query, _, { input }, { db, ...context }) => {
-        const post = await db.post.findUniqueOrThrow({
-          where: { id: input.postId },
-        });
+      const meAsMember = await getSpaceMember(context, post.space.id);
+      if (!meAsMember || (post.userId !== context.session.userId && meAsMember.role !== 'ADMIN')) {
+        throw new PermissionDeniedError();
+      }
 
-        if (post.userId !== context.session.userId) {
-          const meAsMember = post.spaceId
-            ? await db.spaceMember.findUnique({
-                where: {
-                  spaceId_userId: {
-                    spaceId: post.spaceId,
-                    userId: context.session.userId,
-                  },
+      await database
+        .update(Posts)
+        .set({
+          visibility: input.visibility ?? undefined,
+          discloseStats: input.discloseStats ?? undefined,
+          receiveFeedback: input.receiveFeedback ?? undefined,
+          receivePatronage: input.receivePatronage ?? undefined,
+          receiveTagContribution: input.receiveTagContribution ?? undefined,
+        })
+        .where(eq(Posts.id, input.postId));
 
-                  state: 'ACTIVE',
-                },
-              })
-            : null;
+      return input.postId;
+    },
+  }),
 
-          if (meAsMember?.role !== 'ADMIN') {
-            throw new PermissionDeniedError();
-          }
+  updatePostTags: t.withAuth({ user: true }).field({
+    type: Post,
+    args: { input: t.arg({ type: UpdatePostTagsInput }) },
+    resolve: async (_, { input }, context) => {
+      const posts = await database
+        .select({ userId: Posts.userId, space: { id: Spaces.id } })
+        .from(Posts)
+        .innerJoin(Spaces, eq(Spaces.id, Posts.spaceId))
+        .where(and(eq(Posts.id, input.postId), eq(Posts.state, 'PUBLISHED'), eq(Spaces.state, 'ACTIVE')));
+
+      if (posts.length === 0) {
+        throw new NotFoundError();
+      }
+
+      const [post] = posts;
+
+      const meAsMember = await getSpaceMember(context, post.space.id);
+      if (!meAsMember || (post.userId !== context.session.userId && meAsMember.role !== 'ADMIN')) {
+        throw new PermissionDeniedError();
+      }
+
+      await database.transaction(async (tx) => {
+        await tx.delete(PostTags).where(eq(PostTags.postId, input.postId));
+
+        for (const { name, kind } of input.tags) {
+          const [tag] = await tx.insert(Tags).values({ name }).onConflictDoNothing().returning({ id: Tags.id });
+          await tx.insert(PostTags).values({ postId: input.postId, tagId: tag.id, kind });
         }
 
-        const postTags = await Promise.all(
-          (input.tags ?? []).map((tag) =>
-            db.tag.upsert({
-              where: { name: tag.name },
-              create: {
-                id: createId(),
-                name: tag.name,
-              },
-              update: {},
-            }),
-          ),
-        );
+        await tx.update(Posts).set({ category: input.category, pairs: input.pairs }).where(eq(Posts.id, input.postId));
+      });
 
-        return db.post.update({
-          ...query,
-          where: { id: post.id },
-          data: {
-            category: input.category,
-            pairs: input.pairs,
-            tags: {
-              deleteMany: {},
-              createMany: {
-                data: input.tags.map(({ name, kind }) => ({
-                  id: createId(),
-                  // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-                  tagId: postTags.find((tag) => tag.name === name)!.id,
-                  kind,
-                })),
-              },
-            },
-          },
-        });
-      },
-    }),
+      return input.postId;
+    },
+  }),
 
-    deletePost: t.withAuth({ user: true }).prismaField({
-      type: 'Post',
-      args: { input: t.arg({ type: DeletePostInput }) },
-      resolve: async (query, _, { input }, { db, ...context }) => {
-        const post = await db.post.findUniqueOrThrow({
-          where: { id: input.postId },
-        });
+  deletePost: t.withAuth({ user: true }).field({
+    type: Post,
+    args: { input: t.arg({ type: DeletePostInput }) },
+    resolve: async (_, { input }, context) => {
+      const posts = await database
+        .select({ userId: Posts.userId, space: { id: Spaces.id } })
+        .from(Posts)
+        .innerJoin(Spaces, eq(Spaces.id, Posts.spaceId))
+        .where(and(eq(Posts.id, input.postId), eq(Posts.state, 'PUBLISHED'), eq(Spaces.state, 'ACTIVE')));
 
-        if (post.userId !== context.session.userId) {
-          const meAsMember = post.spaceId
-            ? await db.spaceMember.findUnique({
-                where: {
-                  spaceId_userId: {
-                    spaceId: post.spaceId,
-                    userId: context.session.userId,
-                  },
-                },
-              })
-            : null;
+      if (posts.length === 0) {
+        throw new NotFoundError();
+      }
 
-          if (meAsMember?.role !== 'ADMIN') {
-            throw new PermissionDeniedError();
-          }
-        }
+      const [post] = posts;
 
-        await db.spaceCollectionPost.deleteMany({
-          where: { postId: post.id },
-        });
+      const meAsMember = await getSpaceMember(context, post.space.id);
+      if (!meAsMember || (post.userId !== context.session.userId && meAsMember.role !== 'ADMIN')) {
+        throw new PermissionDeniedError();
+      }
 
-        return await db.post.update({
-          ...query,
-          where: { id: post.id },
-          data: {
-            state: 'DELETED',
-            publishedRevision: post.publishedRevisionId ? { update: { kind: 'ARCHIVED' } } : undefined,
-          },
-        });
-      },
-    }),
+      await database.transaction(async (tx) => {
+        await tx.delete(SpaceCollectionPosts).where(eq(SpaceCollectionPosts.postId, input.postId));
+        await defragmentSpaceCollectionPosts(tx, post.space.id);
 
-    likePost: t.withAuth({ user: true }).prismaField({
-      type: 'Post',
-      args: { input: t.arg({ type: LikePostInput }) },
-      resolve: async (query, _, { input }, { db, ...context }) => {
-        return db.post.update({
-          ...query,
-          where: { id: input.postId },
-          data: {
-            likes: {
-              upsert: {
-                where: {
-                  postId_userId: {
-                    postId: input.postId,
-                    userId: context.session.userId,
-                  },
-                },
-                create: {
-                  id: createId(),
-                  userId: context.session.userId,
-                },
-                update: {},
-              },
-            },
-          },
-        });
-      },
-    }),
+        await tx.update(Posts).set({ state: 'DELETED' }).where(eq(Posts.id, input.postId));
+        await tx
+          .update(PostRevisions)
+          .set({ kind: 'ARCHIVED' })
+          .where(and(eq(PostRevisions.postId, input.postId), eq(PostRevisions.kind, 'PUBLISHED')));
+      });
 
-    unlikePost: t.withAuth({ user: true }).prismaField({
-      type: 'Post',
-      args: { input: t.arg({ type: UnlikePostInput }) },
-      resolve: async (query, _, { input }, { db, ...context }) => {
-        return db.post.update({
-          ...query,
-          where: { id: input.postId },
-          data: {
-            likes: {
-              deleteMany: {
-                userId: context.session.userId,
-              },
-            },
-          },
-        });
-      },
-    }),
+      return input.postId;
+    },
+  }),
 
-    purchasePost: t.withAuth({ user: true }).prismaField({
-      type: 'Post',
-      args: { input: t.arg({ type: PurchasePostInput }) },
-      resolve: async (query, _, { input }, { db, ...context }) => {
-        const post = await db.post.findUniqueOrThrow({
-          include: { space: true, publishedRevision: true },
-          where: { id: input.postId },
-        });
+  likePost: t.withAuth({ user: true }).field({
+    type: Post,
+    args: { input: t.arg({ type: LikePostInput }) },
+    resolve: async (_, { input }, context) => {
+      await database
+        .insert(PostLikes)
+        .values({
+          postId: input.postId,
+          userId: context.session.userId,
+        })
+        .onConflictDoNothing();
 
-        if (!post.space || !post.publishedRevision?.price) {
-          throw new IntentionalError('구매할 수 없는 포스트예요');
-        }
+      return input.postId;
+    },
+  }),
 
-        const isMember = await db.spaceMember.existsUnique({
-          where: {
-            spaceId_userId: {
-              spaceId: post.space.id,
-              userId: context.session.userId,
-            },
-          },
-        });
+  unlikePost: t.withAuth({ user: true }).field({
+    type: Post,
+    args: { input: t.arg({ type: UnlikePostInput }) },
+    resolve: async (_, { input }, context) => {
+      await database
+        .delete(PostLikes)
+        .where(and(eq(PostLikes.postId, input.postId), eq(PostLikes.userId, context.session.userId)));
 
-        if (isMember) {
-          throw new IntentionalError('자신이 속한 스페이스의 포스트는 구매할 수 없어요');
-        }
+      return input.postId;
+    },
+  }),
 
-        const purchased = await db.postPurchase.existsUnique({
-          where: {
-            postId_userId: {
-              postId: input.postId,
-              userId: context.session.userId,
-            },
-          },
-        });
+  purchasePost: t.withAuth({ user: true }).field({
+    type: Post,
+    args: { input: t.arg({ type: PurchasePostInput }) },
+    resolve: async (_, { input }, context) => {
+      const posts = await database
+        .select({
+          userId: Posts.userId,
+          space: { id: Spaces.id },
+          revision: { id: PostRevisions.id, price: PostRevisions.price },
+        })
+        .from(Posts)
+        .innerJoin(Spaces, eq(Spaces.id, Posts.spaceId))
+        .innerJoin(PostRevisions, eq(PostRevisions.id, Posts.publishedRevisionId))
+        .where(and(eq(Posts.id, input.postId), eq(Posts.state, 'PUBLISHED'), eq(Spaces.state, 'ACTIVE')));
 
-        if (purchased) {
-          throw new IntentionalError('이미 구매한 포스트예요');
-        }
+      if (posts.length === 0) {
+        throw new NotFoundError();
+      }
 
-        if (post.publishedRevision.id !== input.revisionId) {
-          throw new IntentionalError('포스트 내용이 변경되었어요. 다시 시도해 주세요');
-        }
+      const [post] = posts;
 
-        const purchase = await db.postPurchase.create({
-          data: {
-            id: createId(),
+      if (post.revision.id !== input.revisionId) {
+        throw new IntentionalError('포스트 내용이 변경되었어요. 다시 시도해 주세요');
+      }
+
+      const price = post.revision.price;
+      if (!price) {
+        throw new IntentionalError('구매할 수 없는 포스트예요');
+      }
+
+      const meAsMember = await getSpaceMember(context, post.space.id);
+      if (meAsMember) {
+        throw new IntentionalError('자신이 속한 스페이스의 포스트는 구매할 수 없어요');
+      }
+
+      const purchases = await database
+        .select({ id: PostPurchases.id })
+        .from(PostPurchases)
+        .where(and(eq(PostPurchases.postId, input.postId), eq(PostPurchases.userId, context.session.userId)));
+
+      if (purchases.length > 0) {
+        throw new IntentionalError('이미 구매한 포스트예요');
+      }
+
+      await database.transaction(async (tx) => {
+        const [purchase] = await tx
+          .insert(PostPurchases)
+          .values({
             userId: context.session.userId,
             postId: input.postId,
-            revisionId: post.publishedRevision.id,
-            pointAmount: post.publishedRevision.price,
-          },
-        });
+            revisionId: post.revision.id,
+            pointAmount: price,
+          })
+          .returning({ id: PostPurchases.id });
 
         await deductUserPoint({
-          db,
+          tx,
           userId: context.session.userId,
-          amount: post.publishedRevision.price,
+          amount: price,
           targetId: purchase.id,
           cause: 'UNLOCK_CONTENT',
         });
 
-        await createRevenue({
-          db,
+        await tx.insert(Revenues).values({
           userId: post.userId,
-          amount: post.publishedRevision.price,
+          amount: price,
           targetId: purchase.id,
           kind: 'POST_PURCHASE',
+          state: 'PENDING',
+        });
+      });
+
+      const masquerade = await makeMasquerade({
+        userId: context.session.userId,
+        spaceId: post.space.id,
+      });
+
+      await createNotification({
+        userId: post.userId,
+        category: 'PURCHASE',
+        actorId: masquerade.profileId,
+        data: { postId: input.postId },
+        origin: context.event.url.origin,
+      });
+
+      return input.postId;
+    },
+  }),
+
+  updatePostView: t.field({
+    type: Post,
+    args: { input: t.arg({ type: UpdatePostViewInput }) },
+    resolve: async (_, { input }, context) => {
+      const views = await database
+        .select({ id: PostViews.id })
+        .from(PostViews)
+        .where(
+          and(
+            eq(PostViews.postId, input.postId),
+            context.session ? eq(PostViews.userId, context.session.userId) : eq(PostViews.deviceId, context.deviceId),
+          ),
+        );
+
+      if (views.length > 0) {
+        await database
+          .update(PostViews)
+          .set({ deviceId: context.deviceId, viewedAt: dayjs() })
+          .where(eq(PostViews.id, views[0].id));
+      } else {
+        await database.insert(PostViews).values({
+          postId: input.postId,
+          userId: context.session?.userId,
+          deviceId: context.deviceId,
         });
 
-        const masquerade = await makeMasquerade({
-          db,
+        await redis.incr(`Post:${input.postId}:viewCount`);
+      }
+
+      return input.postId;
+    },
+  }),
+
+  createPostReaction: t.withAuth({ user: true }).field({
+    type: Post,
+    args: { input: t.arg({ type: CreatePostReactionInput }) },
+    resolve: async (_, { input }, context) => {
+      if (!emojiData.emojis[input.emoji]) {
+        throw new IntentionalError('잘못된 이모지예요');
+      }
+
+      const posts = await database
+        .select({ receiveFeedback: Posts.receiveFeedback })
+        .from(Posts)
+        .where(eq(Posts.id, input.postId));
+
+      if (posts.length === 0) {
+        throw new NotFoundError();
+      }
+
+      if (!posts[0].receiveFeedback) {
+        throw new IntentionalError('피드백을 받지 않는 포스트예요');
+      }
+
+      await database
+        .insert(PostReactions)
+        .values({
           userId: context.session.userId,
-          spaceId: post.space.id,
-        });
+          postId: input.postId,
+          emoji: input.emoji,
+        })
+        .onConflictDoNothing();
 
-        await createNotification({
-          db,
-          userId: post.userId,
-          category: 'PURCHASE',
-          actorId: masquerade.profileId,
-          data: { postId: post.id },
-          origin: context.event.url.origin,
-        });
+      return input.postId;
+    },
+  }),
 
-        return await db.post.findUniqueOrThrow({
-          ...query,
-          where: { id: input.postId },
-        });
-      },
-    }),
+  deletePostReaction: t.withAuth({ user: true }).field({
+    type: Post,
+    args: { input: t.arg({ type: DeletePostReactionInput }) },
+    resolve: async (_, { input }, context) => {
+      await database
+        .delete(PostReactions)
+        .where(
+          and(
+            eq(PostReactions.postId, input.postId),
+            eq(PostReactions.userId, context.session.userId),
+            eq(PostReactions.emoji, input.emoji),
+          ),
+        );
 
-    updatePostView: t.prismaField({
-      type: 'Post',
-      args: { input: t.arg({ type: UpdatePostViewInput }) },
-      resolve: async (query, _, { input }, { db, ...context }) => {
-        const view = await db.postView.findFirst({
-          where: {
-            postId: input.postId,
-            userId: context.session ? context.session.userId : undefined,
-            deviceId: context.session ? undefined : context.deviceId,
-          },
-        });
+      return input.postId;
+    },
+  }),
 
-        if (view) {
-          await db.postView.update({
-            where: { id: view.id },
-            data: {
-              deviceId: context.deviceId,
-              viewedAt: new Date(),
-            },
-          });
-        } else {
-          await db.postView.create({
-            data: {
-              id: createId(),
-              postId: input.postId,
-              userId: context.session?.userId,
-              deviceId: context.deviceId,
-            },
-          });
+  unlockPasswordedPost: t.field({
+    type: Post,
+    args: { input: t.arg({ type: UnlockPasswordedPostInput }) },
+    resolve: async (_, { input }, context) => {
+      const posts = await database.select({ password: Posts.password }).from(Posts).where(eq(Posts.id, input.postId));
 
-          const viewCount = await redis.get(`Post:${input.postId}:viewCount`);
-          if (viewCount) {
-            await redis.incr(`Post:${input.postId}:viewCount`);
-          }
+      if (posts.length === 0) {
+        throw new NotFoundError();
+      }
 
-          indexPostTrendingScore({ db, postId: input.postId }).then();
+      if (posts[0].password) {
+        if (!(await verify(posts[0].password, input.password))) {
+          throw new FormValidationError('password', '잘못된 비밀번호예요');
         }
 
-        return db.post.findUniqueOrThrow({
-          ...query,
-          where: { id: input.postId },
-        });
-      },
-    }),
+        await redis.hset(`Post:${input.postId}:passwordUnlock`, context.deviceId, dayjs().add(1, 'hour').toISOString());
+        await redis.expire(`Post:${input.postId}:passwordUnlock`, 60 * 60);
+      }
 
-    createPostReaction: t.withAuth({ user: true }).prismaField({
-      type: 'Post',
-      args: { input: t.arg({ type: CreatePostReactionInput }) },
-      resolve: async (query, _, { input }, { db, ...context }) => {
-        if (!emojiData.emojis[input.emoji]) {
-          throw new IntentionalError('잘못된 이모지예요');
-        }
+      return input.postId;
+    },
+  }),
 
-        const post = await db.post.findUniqueOrThrow({
-          where: { id: input.postId },
-        });
-
-        if (!post.receiveFeedback) {
-          throw new IntentionalError('피드백을 받지 않는 포스트예요');
-        }
-
-        await db.postReaction.create({
-          data: {
-            id: createId(),
-            userId: context.session.userId,
-            postId: input.postId,
-            emoji: input.emoji,
-          },
-        });
-
-        return db.post.findUniqueOrThrow({
-          ...query,
-          where: { id: input.postId },
-        });
-      },
-    }),
-
-    deletePostReaction: t.withAuth({ user: true }).prismaField({
-      type: 'Post',
-      args: { input: t.arg({ type: DeletePostReactionInput }) },
-      resolve: async (query, _, { input }, { db, ...context }) => {
-        await db.postReaction.deleteMany({
-          where: {
-            postId: input.postId,
-            userId: context.session.userId,
-            emoji: input.emoji,
-          },
-        });
-        return db.post.findUniqueOrThrow({
-          ...query,
-          where: { id: input.postId },
-        });
-      },
-    }),
-
-    unlockPasswordedPost: t.prismaField({
-      type: 'Post',
-      args: { input: t.arg({ type: UnlockPasswordedPostInput }) },
-      resolve: async (query, _, { input }, { db, ...context }) => {
-        const post = await db.post.findUniqueOrThrow({
-          where: { id: input.postId },
-        });
-
-        if (post.password) {
-          if (!(await verify(post.password, input.password))) {
-            throw new FormValidationError('password', '잘못된 비밀번호예요');
-          }
-
-          await redis.hset(`Post:${post.id}:passwordUnlock`, context.deviceId, dayjs().add(1, 'hour').toISOString());
-          await redis.expire(`Post:${post.id}:passwordUnlock`, 60 * 60);
-        }
-
-        return db.post.findUniqueOrThrow({
-          ...query,
-          where: { id: post.id },
-        });
-      },
-    }),
-
-    generatePostShareImage: t.string({
-      args: { input: t.arg({ type: GeneratePostShareImageInput }) },
-      resolve: async (_, { input }) => {
-        const png = await generatePostShareImage(input);
-        return `data:image/png;base64,${png.toString('base64')}`;
-      },
-    }),
-  }));
-});
+  generatePostShareImage: t.string({
+    args: { input: t.arg({ type: GeneratePostShareImageInput }) },
+    resolve: async (_, { input }) => {
+      const png = await generatePostShareImage(input);
+      return `data:image/png;base64,${png.toString('base64')}`;
+    },
+  }),
+}));

@@ -31,10 +31,10 @@
         description
         visibility
 
-        externalLinks {
-          id
-          url
-        }
+        # externalLinks {
+        #   id
+        #   url
+        # }
 
         icon {
           id
@@ -72,10 +72,10 @@
           description
           visibility
 
-          externalLinks {
-            id
-            url
-          }
+          # externalLinks {
+          #   id
+          #   url
+          # }
 
           icon {
             id

@@ -9,7 +9,6 @@ export default {
     alias: {
       '$assets': './src/assets',
       '$glitch': './.glitch',
-      '$prisma': './prisma',
       '$styled-system': './styled-system/*',
     },
     env: {

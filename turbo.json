@@ -10,7 +10,7 @@
     "codegen": {
       "dependsOn": ["^build"],
       "dotEnv": [".env"],
-      "outputs": [".svelte-kit/**", ".glitch/**", ".prisma/**", "styled-system/**"]
+      "outputs": [".svelte-kit/**", ".glitch/**", "styled-system/**"]
     },
     "dev": {
       "cache": false,

@@ -1,14 +1,14 @@
 import dayjs from 'dayjs';
+import { eq, inArray } from 'drizzle-orm';
 import { traverse } from 'object-traversal';
 import { createTiptapDocument, documentToText } from '$lib/utils';
 import { useCache } from '../cache';
+import { database, Embeds, Files, Images } from '../database';
 import type { JSONContent } from '@tiptap/core';
-import type { Prisma } from '$prisma';
-import type { InteractiveTransactionClient } from '../prisma';
 
 type RevisionContent = {
   id: string;
-  data: JSONContent[] | Prisma.JsonValue;
+  data: unknown;
 };
 
 export const revisionContentToText = async (revisionContent: RevisionContent): Promise<string> => {
@@ -23,7 +23,11 @@ export const revisionContentToText = async (revisionContent: RevisionContent): P
   return '';
 };
 
-export const isEmptyContent = (content: JSONContent[]): boolean => {
+export const isEmptyContent = (content: JSONContent[] | null): boolean => {
+  if (!content) {
+    return true;
+  }
+
   if (content.length === 0) {
     return true;
   }
@@ -45,10 +49,7 @@ export const sanitizeContent = async (content: JSONContent[]): Promise<JSONConte
   return content;
 };
 
-export const decorateContent = async (
-  db: InteractiveTransactionClient,
-  content: JSONContent[],
-): Promise<JSONContent[]> => {
+export const decorateContent = async (content: JSONContent[]): Promise<JSONContent[]> => {
   return Promise.all(
     content.map(async (node) => {
       if (node.type === 'image') {
@@ -56,10 +57,11 @@ export const decorateContent = async (
           return node;
         }
 
-        const image = await db.image.findUnique({
-          select: { id: true, path: true },
-          where: { id: node.attrs.id },
-        });
+        const image = await database
+          .select({ id: Images.id, path: Images.path })
+          .from(Images)
+          .where(eq(Images.id, node.attrs.id))
+          .then((images) => images[0]);
 
         if (!image) {
           return node;
@@ -82,10 +84,10 @@ export const decorateContent = async (
           return node;
         }
 
-        const images = await db.image.findMany({
-          select: { id: true, name: true, color: true, path: true },
-          where: { id: { in: node.attrs.ids } },
-        });
+        const images = await database
+          .select({ id: Images.id, name: Images.name, color: Images.color, path: Images.path })
+          .from(Images)
+          .where(inArray(Images.id, node.attrs.ids));
 
         return {
           ...node,
@@ -119,10 +121,11 @@ export const decorateContent = async (
           return node;
         }
 
-        const file = await db.file.findUnique({
-          select: { id: true, name: true, size: true, path: true },
-          where: { id: node.attrs.id },
-        });
+        const file = await database
+          .select({ id: Files.id, name: Files.name, size: Files.size, path: Files.path })
+          .from(Files)
+          .where(eq(Files.id, node.attrs.id))
+          .then((files) => files[0]);
 
         if (!file) {
           return node;
@@ -147,10 +150,17 @@ export const decorateContent = async (
           return node;
         }
 
-        const embed = await db.embed.findUnique({
-          select: { type: true, title: true, description: true, thumbnailUrl: true, html: true },
-          where: { url: node.attrs.url },
-        });
+        const embed = await database
+          .select({
+            type: Embeds.type,
+            title: Embeds.title,
+            description: Embeds.description,
+            thumbnailUrl: Embeds.thumbnailUrl,
+            html: Embeds.html,
+          })
+          .from(Embeds)
+          .where(eq(Embeds.url, node.attrs.url))
+          .then((embeds) => embeds[0]);
 
         if (!embed) {
           return node;

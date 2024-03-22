@@ -11,9 +11,6 @@ export const updates: GraphCacheConfig['updates'] = {
     deleteSpace: (_, { input }, cache) => {
       cache.invalidate({ __typename: 'Space', id: input.spaceId });
     },
-    removeSpaceMember: (_, { input }, cache) => {
-      cache.invalidate({ __typename: 'SpaceMember', id: input.spaceMemberId });
-    },
     followSpace: (_, __, cache) => {
       cache.invalidate(me(cache), 'followedSpaces');
     },
@@ -39,16 +36,16 @@ export const updates: GraphCacheConfig['updates'] = {
       cache.invalidate(me(cache), 'followedTags');
     },
     unbookmarkPost: (_, __, cache) => {
-      cache.invalidate(me(cache), 'bookmarks');
+      cache.invalidate(me(cache), 'bookmarkGroups');
     },
     createSpaceCollection: (_, { input }, cache) => {
       cache.invalidate({ __typename: 'Space', id: input.spaceId });
     },
     deleteSpaceCollection: (_, { input }, cache) => {
-      cache.invalidate({ __typename: 'SpaceCollection', id: input.collectionId });
+      cache.invalidate({ __typename: 'SpaceCollection', id: input.spaceCollectionId });
     },
     setSpaceCollectionPosts: (_, { input }, cache) => {
-      cache.invalidate({ __typename: 'SpaceCollection', id: input.collectionId });
+      cache.invalidate({ __typename: 'SpaceCollection', id: input.spaceCollectionId });
     },
     createComment: (_, { input }, cache) => {
       cache.invalidate({ __typename: 'Post', id: input.postId });

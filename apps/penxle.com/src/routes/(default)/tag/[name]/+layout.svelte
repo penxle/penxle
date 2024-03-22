@@ -25,10 +25,10 @@
         followed
         muted
 
-        parents {
-          id
-          name
-        }
+        # parents {
+        #   id
+        #   name
+        # }
       }
     }
   `);
@@ -81,9 +81,9 @@
     })}
   >
     <div class={flex({ marginBottom: '10px', fontSize: '13px', fontWeight: 'medium', color: 'gray.400' })}>
-      {#each $query.tag.parents as parent (parent.id)}
+      <!-- {#each $query.tag.parents as parent (parent.id)}
         <span class={css({ _after: { content: '|', marginX: '8px' } })}>{parent.name}</span>
-      {/each}
+      {/each} -->
     </div>
 
     <div class={flex({ justify: 'space-between', align: 'flex-start' })}>

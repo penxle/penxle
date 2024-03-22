@@ -1,1 +1,0 @@
-ALTER TABLE "posts" ADD COLUMN     "protect_content" BOOLEAN NOT NULL DEFAULT true;

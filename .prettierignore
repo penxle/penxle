@@ -5,3 +5,4 @@ docs/*
 pnpm-lock.yaml
 
 schema.graphql
+drizzle/

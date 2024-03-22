@@ -1,10 +1,12 @@
 import { GetObjectCommand } from '@aws-sdk/client-s3';
 import { renderAsync } from '@resvg/resvg-js';
+import { and, eq } from 'drizzle-orm';
 import got from 'got';
 import { png } from 'itty-router';
 import satori from 'satori';
 import sharp from 'sharp';
 import twemoji from 'twemoji';
+import { database, Images, PostRevisions, Posts, Profiles, SpaceMembers, Spaces } from '$lib/server/database';
 import { s3 } from '$lib/server/external-api/aws';
 import { createRouter } from '../router';
 import type { IRequest } from 'itty-router';
@@ -19,25 +21,42 @@ const KoPubWorldDotumLight = await got('https://glyph.pub/assets/fonts/KoPubWorl
 const KoPubWorldDotumMedium = await got('https://glyph.pub/assets/fonts/KoPubWorldDotumMedium.otf').buffer();
 const KoPubWorldDotumBold = await got('https://glyph.pub/assets/fonts/KoPubWorldDotumBold.otf').buffer();
 
-opengraph.get('/opengraph/post/:postId', async (request, { db }) => {
+opengraph.get('/opengraph/post/:postId', async (request) => {
   const postId = (request as IRequest).params.postId;
 
-  const post = await db.post.findUnique({
-    select: {
-      publishedRevision: { select: { title: true, subtitle: true } },
-      space: { select: { name: true } },
-      member: { select: { profile: { select: { name: true } } } },
-      thumbnail: { select: { path: true } },
-    },
-    where: {
-      id: postId,
-      state: 'PUBLISHED',
-    },
-  });
+  // const post = await db.post.findUnique({
+  //   select: {
+  //     publishedRevision: { select: { title: true, subtitle: true } },
+  //     space: { select: { name: true } },
+  //     member: { select: { profile: { select: { name: true } } } },
+  //     thumbnail: { select: { path: true } },
+  //   },
+  //   where: {
+  //     id: postId,
+  //     state: 'PUBLISHED',
+  //   },
+  // });
 
-  if (!post || !post.publishedRevision || !post.space || !post.member) {
+  const posts = await database
+    .select({
+      publishedRevision: { title: PostRevisions.title, subtitle: PostRevisions.subtitle },
+      space: { name: Spaces.name },
+      member: { name: Profiles.name },
+      thumbnail: { path: Images.path },
+    })
+    .from(Posts)
+    .innerJoin(PostRevisions, eq(PostRevisions.id, Posts.publishedRevisionId))
+    .innerJoin(Spaces, eq(Spaces.id, Posts.spaceId))
+    .innerJoin(SpaceMembers, eq(SpaceMembers.id, Posts.memberId))
+    .innerJoin(Profiles, eq(Profiles.id, SpaceMembers.profileId))
+    .leftJoin(Images, eq(Images.id, Posts.thumbnailId))
+    .where(and(eq(Posts.id, postId), eq(Posts.state, 'PUBLISHED')));
+
+  if (posts.length === 0) {
     return png(DefaultCover);
   }
+
+  const [post] = posts;
 
   const svg = await satori(
     {
@@ -121,7 +140,7 @@ opengraph.get('/opengraph/post/:postId', async (request, { db }) => {
                 {
                   type: 'div',
                   props: {
-                    children: `by ${post.member.profile.name}`,
+                    children: `by ${post.member.name}`,
                     style: {
                       marginTop: '3px',
                       display: 'block',

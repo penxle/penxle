@@ -10,18 +10,14 @@
       me @_required {
         id
 
-        bookmarks {
+        bookmarkGroups {
           id
           name
           postCount
 
           posts {
             id
-
-            post {
-              id
-              ...Feed_post
-            }
+            ...Feed_post
           }
         }
       }
@@ -50,10 +46,10 @@
 </div>
 
 <div class={css({ marginY: '28px', width: 'full', maxWidth: '800px' })}>
-  <p class={css({ fontSize: '18px', fontWeight: 'bold' })}>{$query.me.bookmarks[0].postCount}개의 포스트</p>
+  <p class={css({ fontSize: '18px', fontWeight: 'bold' })}>{$query.me.bookmarkGroups[0].postCount}개의 포스트</p>
 
   <div class={css({ marginTop: '36px' })}>
-    {#each $query.me.bookmarks[0].posts as { post } (post.id)}
+    {#each $query.me.bookmarkGroups[0].posts as post (post.id)}
       <PostCard
         style={css.raw({ marginBottom: { base: '46px', _lastOfType: '0' } })}
         $post={post}

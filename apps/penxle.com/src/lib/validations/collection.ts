@@ -8,12 +8,12 @@ export const CreateSpaceCollectionSchema = z.object({
 });
 
 export const UpdateSpaceCollectionSchema = z.object({
-  collectionId: z.string(),
+  spaceCollectionId: z.string(),
   name,
   thumbnailId: z.string().optional(),
 });
 
 export const SetSpaceCollectionPostSchema = z.object({
-  collectionId: z.string(),
+  spaceCollectionId: z.string(),
   postIds: z.array(z.string()),
 });

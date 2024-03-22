@@ -1,30 +1,30 @@
-import type { InteractiveTransactionClient } from '$lib/server/database';
+import { eq } from 'drizzle-orm';
+import { database, UserSpaceMutes, UserTagMutes } from '../database';
 
 type GetMutedParams = {
-  db: InteractiveTransactionClient;
   userId?: string;
 };
 
-export const getMutedSpaceIds = async ({ db, userId }: GetMutedParams): Promise<string[]> => {
+export const getMutedSpaceIds = async ({ userId }: GetMutedParams): Promise<string[]> => {
   if (!userId) {
     return [];
   }
 
-  const userSpaceMutes = await db.userSpaceMute.findMany({
-    where: { userId },
-  });
-
-  return userSpaceMutes.map(({ spaceId }) => spaceId);
+  return await database
+    .select({ spaceId: UserSpaceMutes.spaceId })
+    .from(UserSpaceMutes)
+    .where(eq(UserSpaceMutes.userId, userId))
+    .then((result) => result.map(({ spaceId }) => spaceId));
 };
 
-export const getMutedTagIds = async ({ db, userId }: GetMutedParams): Promise<string[]> => {
+export const getMutedTagIds = async ({ userId }: GetMutedParams): Promise<string[]> => {
   if (!userId) {
     return [];
   }
 
-  const userTagMutes = await db.userTagMute.findMany({
-    where: { userId },
-  });
-
-  return userTagMutes.map(({ tagId }) => tagId);
+  return await database
+    .select({ tagId: UserTagMutes.tagId })
+    .from(UserTagMutes)
+    .where(eq(UserTagMutes.userId, userId))
+    .then((result) => result.map(({ tagId }) => tagId));
 };

@@ -1,48 +1,46 @@
-import { createId } from '$lib/utils';
-import type { PrismaEnums } from '$prisma';
-import type { InteractiveTransactionClient } from '../database';
+import dayjs from 'dayjs';
+import { and, asc, eq, gt, sum } from 'drizzle-orm';
+import { database, PointBalances, PointTransactions } from '../database';
+import type { PointKind, PointTransactionCause } from '$lib/enums';
+import type { Transaction } from '../database';
 
 type GetUserPointParams = {
-  db: InteractiveTransactionClient;
   userId: string;
-  kind?: PrismaEnums.PointKind;
+  kind?: keyof typeof PointKind;
 };
-export const getUserPoint = async ({ db, userId, kind }: GetUserPointParams) => {
-  const agg = await db.pointBalance.aggregate({
-    _sum: { leftover: true },
-    where: {
-      userId,
-      leftover: { gt: 0 },
-      expiresAt: { gt: new Date() },
-      kind,
-    },
-  });
-
-  return agg._sum.leftover ?? 0;
+export const getUserPoint = async ({ userId, kind }: GetUserPointParams) => {
+  return await database
+    .select({ sum: sum(PointBalances.leftover).mapWith(Number) })
+    .from(PointBalances)
+    .where(
+      and(
+        eq(PointBalances.userId, userId),
+        gt(PointBalances.leftover, 0),
+        gt(PointBalances.expiresAt, dayjs()),
+        kind ? eq(PointBalances.kind, kind) : undefined,
+      ),
+    )
+    .then(([{ sum }]) => sum ?? 0);
 };
 
 type DeductPointParams = {
-  db: InteractiveTransactionClient;
+  tx: Transaction;
   userId: string;
   amount: number;
-  cause: PrismaEnums.PointTransactionCause;
+  cause: keyof typeof PointTransactionCause;
   targetId?: string;
 };
-export const deductUserPoint = async ({ db, userId, amount, targetId, cause }: DeductPointParams) => {
+export const deductUserPoint = async ({ tx, userId, amount, targetId, cause }: DeductPointParams) => {
   if (amount <= 0) {
     throw new Error('amount must be positive');
   }
 
-  await db.$lock(`USER_POINT_${userId}`);
-
-  const pointBalances = await db.pointBalance.findMany({
-    where: {
-      userId,
-      leftover: { gt: 0 },
-      expiresAt: { gt: new Date() },
-    },
-    orderBy: [{ expiresAt: 'asc' }, { kind: 'asc' }],
-  });
+  const pointBalances = await tx
+    .select({ id: PointBalances.id, leftover: PointBalances.leftover })
+    .from(PointBalances)
+    .where(and(eq(PointBalances.userId, userId), gt(PointBalances.leftover, 0), gt(PointBalances.expiresAt, dayjs())))
+    .orderBy(asc(PointBalances.expiresAt), asc(PointBalances.kind))
+    .for('update');
 
   let targetAmount = amount;
   const changes: { id: string; leftover: number }[] = [];
@@ -66,19 +64,13 @@ export const deductUserPoint = async ({ db, userId, amount, targetId, cause }: D
   }
 
   for (const { id, leftover } of changes) {
-    await db.pointBalance.update({
-      where: { id },
-      data: { leftover },
-    });
+    await tx.update(PointBalances).set({ leftover }).where(eq(PointBalances.id, id));
   }
 
-  await db.pointTransaction.create({
-    data: {
-      id: createId(),
-      userId,
-      cause,
-      amount: -amount,
-      targetId,
-    },
+  await tx.insert(PointTransactions).values({
+    userId,
+    cause,
+    amount: -amount,
+    targetId,
   });
 };

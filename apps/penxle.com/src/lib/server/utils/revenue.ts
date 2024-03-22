@@ -1,158 +1,145 @@
 import dayjs from 'dayjs';
+import { and, eq, inArray, isNull, lt, ne, sum } from 'drizzle-orm';
 import { match } from 'ts-pattern';
+import { RevenueWithdrawalKind } from '$lib/enums';
 import { IntentionalError } from '$lib/errors';
 import * as coocon from '$lib/server/external-api/coocon';
 import { logToSlack } from '$lib/server/utils';
-import { calculateFeeAmount, createId, getMonthlyWithdrawableDayjsBefore } from '$lib/utils';
-import { prismaClient } from '../database';
-import type { PrismaEnums } from '$prisma';
-import type { InteractiveTransactionClient } from '../database';
+import { calculateFeeAmount, getMonthlyWithdrawableDayjsBefore } from '$lib/utils';
+import { database, Revenues, RevenueWithdrawals, UserSettlementIdentities } from '../database';
 
 const getWithdrawableDayjs = () => dayjs().subtract(7, 'day');
 
 type GetUserRevenueParams = {
-  db: InteractiveTransactionClient;
   userId: string;
   withdrawableOnly?: boolean;
   monthlyWithdrawableOnly?: boolean;
 };
-export const getUserRevenue = async ({
-  db,
-  userId,
-  withdrawableOnly,
-  monthlyWithdrawableOnly,
-}: GetUserRevenueParams) => {
-  const dateLt = (() => {
-    if (monthlyWithdrawableOnly) {
-      return getMonthlyWithdrawableDayjsBefore().toDate();
-    }
-    if (withdrawableOnly) {
-      return getWithdrawableDayjs().toDate();
-    }
-    return undefined;
-  })();
+export const getUserRevenue = async ({ userId, withdrawableOnly, monthlyWithdrawableOnly }: GetUserRevenueParams) => {
+  const [{ value }] = await database
+    .select({ value: sum(Revenues.amount).mapWith(Number) })
+    .from(Revenues)
+    .where(
+      and(
+        eq(Revenues.userId, userId),
+        ne(Revenues.state, 'PAID'),
+        monthlyWithdrawableOnly
+          ? lt(Revenues.createdAt, getMonthlyWithdrawableDayjsBefore())
+          : withdrawableOnly
+            ? lt(Revenues.createdAt, getWithdrawableDayjs())
+            : undefined,
+      ),
+    );
 
-  const agg = await db.revenue.aggregate({
-    _sum: { amount: true },
-    where: {
-      userId,
-      state: { not: 'PAID' },
-      createdAt: { lt: dateLt },
-    },
-  });
-
-  return agg._sum.amount ?? 0;
-};
-
-type CreateRevenueParams = {
-  db: InteractiveTransactionClient;
-  userId: string;
-  targetId: string;
-  amount: number;
-  kind: PrismaEnums.RevenueKind;
-};
-export const createRevenue = async ({ db, userId, targetId, amount, kind }: CreateRevenueParams) => {
-  if (amount <= 0) {
-    throw new Error('amount must be positive');
-  }
-
-  await db.revenue.create({
-    data: {
-      id: createId(),
-      userId,
-      targetId,
-      amount,
-      kind,
-      state: 'PENDING',
-    },
-  });
+  return value;
 };
 
 type SettleRevenueParams = {
   userId: string;
-  settlementType: PrismaEnums.RevenueWithdrawalKind;
+  settlementType: keyof typeof RevenueWithdrawalKind;
 };
 export const settleRevenue = async ({ userId, settlementType }: SettleRevenueParams) => {
-  const db = await prismaClient.$begin({ isolation: 'ReadCommitted' });
-  await db.$lock(`USER_REVENUE_${userId}`);
+  const settlementIdentities = await database
+    .select({
+      bankCode: UserSettlementIdentities.bankCode,
+      bankAccountNumber: UserSettlementIdentities.bankAccountNumber,
+    })
+    .from(UserSettlementIdentities)
+    .where(eq(UserSettlementIdentities.userId, userId));
 
-  const revenues = await db.revenue.findMany({
-    where: {
-      userId,
-      state: { not: 'PAID' },
-      withdrawalId: null,
-      createdAt: { lt: getWithdrawableDayjs().toDate() },
-    },
-  });
-
-  const totalRevenueAmount = revenues.reduce((sum, revenue) => sum + revenue.amount, 0);
-
-  if (
-    !match(settlementType)
-      .with('MONTHLY', () => totalRevenueAmount >= 30_000)
-      .with('INSTANT', () => totalRevenueAmount >= 1000)
-      .exhaustive()
-  ) {
-    throw new IntentionalError('출금할 수 있는 금액이 없어요');
-  }
-
-  const withdrawalFeeAmount = match(settlementType)
-    .with('MONTHLY', () => 0)
-    .with('INSTANT', () => 500)
-    .exhaustive();
-
-  const { settleAmount, taxBaseAmount, taxAmount, serviceFeeAmount } = calculateFeeAmount(
-    totalRevenueAmount,
-    withdrawalFeeAmount,
-  );
-
-  if (settleAmount <= 0) {
-    throw new IntentionalError('출금할 수 있는 금액이 없어요');
-  }
-
-  if (
-    settleAmount + serviceFeeAmount + taxAmount + withdrawalFeeAmount !== totalRevenueAmount ||
-    Math.floor(taxBaseAmount * 0.033) !== taxAmount
-  ) {
-    throw new IntentionalError('출금 금액 계산에 문제가 발생했어요. 고객센터에 문의해주세요');
-  }
-
-  const settlementIdentity = await db.userSettlementIdentity.findUnique({
-    where: { userId },
-  });
-
-  if (!settlementIdentity) {
+  if (settlementIdentities.length === 0) {
     throw new IntentionalError('먼저 계좌 인증을 진행해 주세요');
   }
 
-  const settlement = await db.revenueWithdrawal.create({
-    data: {
-      id: createId(),
-      userId,
-      kind: settlementType,
-      bankCode: settlementIdentity.bankCode,
-      bankAccountNumber: settlementIdentity.bankAccountNumber,
-      revenueAmount: totalRevenueAmount,
-      paidAmount: settleAmount,
-      taxAmount,
-      serviceFeeAmount,
-      withdrawalFeeAmount,
-      totalFeeAmount: serviceFeeAmount + withdrawalFeeAmount,
-      taxBaseAmount,
-      revenues: { connect: revenues.map((revenue) => ({ id: revenue.id })) },
-    },
-  });
+  const withdrawal = await database.transaction(async (tx) => {
+    const revenues = await tx
+      .select({ id: Revenues.id, amount: Revenues.amount })
+      .from(Revenues)
+      .where(
+        and(
+          eq(Revenues.userId, userId),
+          ne(Revenues.state, 'PAID'),
+          isNull(Revenues.withdrawalId),
+          lt(Revenues.createdAt, getWithdrawableDayjs()),
+        ),
+      )
+      .for('update');
 
-  await db.$commit();
+    const totalRevenueAmount = revenues.reduce((sum, revenue) => sum + revenue.amount, 0);
+
+    if (
+      !match(settlementType)
+        .with('MONTHLY', () => totalRevenueAmount >= 30_000)
+        .with('INSTANT', () => totalRevenueAmount >= 1000)
+        .exhaustive()
+    ) {
+      throw new IntentionalError('출금할 수 있는 금액이 없어요');
+    }
+
+    const withdrawalFeeAmount = match(settlementType)
+      .with('MONTHLY', () => 0)
+      .with('INSTANT', () => 500)
+      .exhaustive();
+
+    const { settleAmount, taxBaseAmount, taxAmount, serviceFeeAmount } = calculateFeeAmount(
+      totalRevenueAmount,
+      withdrawalFeeAmount,
+    );
+
+    if (settleAmount <= 0) {
+      throw new IntentionalError('출금할 수 있는 금액이 없어요');
+    }
+
+    if (
+      settleAmount + serviceFeeAmount + taxAmount + withdrawalFeeAmount !== totalRevenueAmount ||
+      Math.floor(taxBaseAmount * 0.033) !== taxAmount
+    ) {
+      throw new IntentionalError('출금 금액 계산에 문제가 발생했어요. 고객센터에 문의해주세요');
+    }
+
+    const [withdrawal] = await database
+      .insert(RevenueWithdrawals)
+      .values({
+        userId,
+        kind: settlementType,
+        bankCode: settlementIdentities[0].bankCode,
+        bankAccountNumber: settlementIdentities[0].bankAccountNumber,
+        revenueAmount: totalRevenueAmount,
+        paidAmount: settleAmount,
+        taxAmount,
+        serviceFeeAmount,
+        withdrawalFeeAmount,
+        totalFeeAmount: serviceFeeAmount + withdrawalFeeAmount,
+        taxBaseAmount,
+      })
+      .returning({
+        id: RevenueWithdrawals.id,
+        bankCode: RevenueWithdrawals.bankCode,
+        bankAccountNumber: RevenueWithdrawals.bankAccountNumber,
+        paidAmount: RevenueWithdrawals.paidAmount,
+      });
+
+    await tx
+      .update(Revenues)
+      .set({ withdrawalId: withdrawal.id })
+      .where(
+        inArray(
+          Revenues.id,
+          revenues.map((revenue) => revenue.id),
+        ),
+      );
+
+    return withdrawal;
+  });
 
   let txId: string | undefined;
 
   try {
     txId = await coocon.transferOut({
-      bankCode: settlement.bankCode,
-      accountNumber: settlement.bankAccountNumber,
-      amount: settlement.paidAmount,
-      memo: settlement.id,
+      bankCode: withdrawal.bankCode,
+      accountNumber: withdrawal.bankAccountNumber,
+      amount: withdrawal.paidAmount,
+      memo: withdrawal.id,
     });
   } catch (err) {
     logToSlack('settle', {
@@ -168,47 +155,58 @@ export const settleRevenue = async ({ userId, settlementType }: SettleRevenuePar
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `UserID: ${userId}\nSettlementID: ${settlement.id}\nError: ${(err as Error).message}`,
+            text: `UserID: ${userId}\nSettlementID: ${withdrawal.id}\nError: ${(err as Error).message}`,
           },
         },
       ],
     });
 
-    await prismaClient.revenueWithdrawal.update({
-      where: { id: settlement.id },
-      data: {
-        state: 'FAILED',
-        revenues: { set: [] },
-      },
+    await database.transaction(async (tx) => {
+      await tx.update(RevenueWithdrawals).set({ state: 'FAILED' }).where(eq(RevenueWithdrawals.id, withdrawal.id));
+      await tx.update(Revenues).set({ withdrawalId: null }).where(eq(Revenues.withdrawalId, withdrawal.id));
     });
 
     throw new IntentionalError('수익출금에 실패했어요');
   }
 
   try {
-    const dbAfter = await prismaClient.$begin({ isolation: 'ReadCommitted' });
-    await dbAfter.$lock(`USER_REVENUE_${userId}`);
+    await database.transaction(async (tx) => {
+      const revenues = await tx
+        .select({ id: Revenues.id })
+        .from(Revenues)
+        .where(eq(Revenues.withdrawalId, withdrawal.id))
+        .for('update');
 
-    const txSuccess = await coocon.verifyTransferOut({ txId });
-    if (!txSuccess) {
-      throw new IntentionalError('이체 검증에 실패했어요. 고객센터에 문의해 주세요');
-    }
+      const withdrawals = await tx
+        .select({ id: RevenueWithdrawals.id })
+        .from(RevenueWithdrawals)
+        .where(eq(RevenueWithdrawals.id, withdrawal.id))
+        .for('update');
 
-    await dbAfter.revenueWithdrawal.update({
-      where: { id: settlement.id },
-      data: {
-        state: 'SUCCESS',
-        txId,
-        revenues: {
-          updateMany: {
-            where: {},
-            data: { state: 'PAID' },
-          },
-        },
-      },
+      if (revenues.length === 0 || withdrawals.length === 0) {
+        throw new IntentionalError('수익출금 정보가 없어요. 고객센터에 문의해 주세요');
+      }
+
+      const txSuccess = await coocon.verifyTransferOut({ txId });
+      if (!txSuccess) {
+        throw new IntentionalError('이체 검증에 실패했어요. 고객센터에 문의해 주세요');
+      }
+
+      await tx
+        .update(RevenueWithdrawals)
+        .set({ txId, state: 'SUCCESS' })
+        .where(eq(RevenueWithdrawals.id, withdrawals[0].id));
+
+      await tx
+        .update(Revenues)
+        .set({ state: 'PAID' })
+        .where(
+          inArray(
+            Revenues.id,
+            revenues.map((revenue) => revenue.id),
+          ),
+        );
     });
-
-    await dbAfter.$commit();
   } catch (err) {
     logToSlack('settle', {
       blocks: [
@@ -223,7 +221,7 @@ export const settleRevenue = async ({ userId, settlementType }: SettleRevenuePar
           type: 'section',
           text: {
             type: 'mrkdwn',
-            text: `UserID: ${userId}\nSettlementID: ${settlement.id}\nTxID: ${txId}\nAmount: ${settlement.paidAmount}\nError: ${(err as Error).message}`,
+            text: `UserID: ${userId}\nSettlementID: ${withdrawal.id}\nTxID: ${txId}\nAmount: ${withdrawal.paidAmount}\nError: ${(err as Error).message}`,
           },
         },
         {
@@ -252,11 +250,11 @@ export const settleRevenue = async ({ userId, settlementType }: SettleRevenuePar
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `UserID: ${userId}\nSettlementID: ${settlement.id}\nTxID: ${txId}\nAccount:${settlement.bankCode} ${settlement.bankAccountNumber}\nAmount: ${settlement.paidAmount}`,
+          text: `UserID: ${userId}\nSettlementID: ${withdrawal.id}\nTxID: ${txId}\nAccount:${withdrawal.bankCode} ${withdrawal.bankAccountNumber}\nAmount: ${withdrawal.paidAmount}`,
         },
       },
     ],
   });
 
-  return settlement;
+  return withdrawal;
 };

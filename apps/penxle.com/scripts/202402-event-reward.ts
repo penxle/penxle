@@ -1,49 +1,55 @@
 import dayjs from 'dayjs';
-import { prismaClient } from '$lib/server/database';
-import { createId } from '$lib/utils/id';
+import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { database, PointBalances, PointTransactions, UserEventEnrollments } from '$lib/server/database';
 
 let eventEnrollmentCount = 0;
 do {
-  await prismaClient.$transaction(async (db) => {
-    const eventEnrollments = await db.userEventEnrollment.findMany({
-      where: {
-        eventCode: { in: ['post_publish_202402', 'twitter_spacelink_2024'] },
-        eligible: true,
-        rewardedAt: null,
-      },
-      take: 100,
-    });
+  await database.transaction(async (tx) => {
+    const eventEnrollments = await tx
+      .select({ id: UserEventEnrollments.id, userId: UserEventEnrollments.userId })
+      .from(UserEventEnrollments)
+      .where(
+        and(
+          inArray(UserEventEnrollments.eventCode, ['post_publish_202402', 'twitter_spacelink_2024']),
+          eq(UserEventEnrollments.eligible, true),
+          isNull(UserEventEnrollments.rewardedAt),
+        ),
+      )
+      .limit(100)
+      .for('update');
 
-    if ((eventEnrollmentCount = eventEnrollments.length) === 0) return;
+    eventEnrollmentCount = eventEnrollments.length;
+    if (eventEnrollmentCount === 0) {
+      return;
+    }
 
-    await Promise.all(
-      eventEnrollments.map((enrollment) =>
-        db.userEventEnrollment.update({
-          where: { id: enrollment.id },
-          data: { rewardedAt: new Date() },
-        }),
-      ),
-    );
+    await tx
+      .update(UserEventEnrollments)
+      .set({ rewardedAt: dayjs() })
+      .where(
+        inArray(
+          UserEventEnrollments.id,
+          eventEnrollments.map((enrollment) => enrollment.id),
+        ),
+      );
 
-    await db.pointBalance.createMany({
-      data: eventEnrollments.map((enrollment) => ({
-        id: createId(),
+    await tx.insert(PointBalances).values(
+      eventEnrollments.map((enrollment) => ({
         userId: enrollment.userId,
-        kind: 'FREE',
+        kind: 'FREE' as const,
         initial: 2000,
         leftover: 2000,
-        expiresAt: dayjs().add(1, 'years').toDate(),
+        expiresAt: dayjs().add(1, 'years'),
       })),
-    });
+    );
 
-    await db.pointTransaction.createMany({
-      data: eventEnrollments.map((enrollment) => ({
-        id: createId(),
+    await tx.insert(PointTransactions).values(
+      eventEnrollments.map((enrollment) => ({
         userId: enrollment.userId,
         amount: 2000,
-        cause: 'EVENT_REWARD',
+        cause: 'EVENT_REWARD' as const,
         targetId: enrollment.id,
       })),
-    });
+    );
   });
 } while (eventEnrollmentCount > 0);

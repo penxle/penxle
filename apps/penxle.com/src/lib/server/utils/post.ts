@@ -1,33 +1,47 @@
 import { webcrypto } from 'node:crypto';
+import { asc, count, eq } from 'drizzle-orm';
 import { useCache } from '$lib/server/cache';
-import { createId } from '$lib/utils';
+import { database, PostRevisionContents, PostViews, SpaceCollectionPosts } from '../database';
+import { isEmptyContent } from './tiptap';
 import type { JSONContent } from '@tiptap/core';
-import type { InteractiveTransactionClient } from '../prisma';
+import type { Transaction } from '../database';
 
-type RevisePostContentParams = {
-  db: InteractiveTransactionClient;
-  contentData: JSONContent[];
-};
+export const makePostContentId = async (data: JSONContent[] | null) => {
+  if (isEmptyContent(data)) {
+    return null;
+  }
 
-export const revisePostContent = async ({ db, contentData }: RevisePostContentParams) => {
-  const contentHash = Buffer.from(
-    await webcrypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(contentData))),
+  const hash = Buffer.from(
+    await webcrypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify(data))),
   ).toString('hex');
 
-  return await db.postRevisionContent.upsert({
-    where: { hash: contentHash },
-    create: {
-      id: createId(),
-      hash: contentHash,
-      data: contentData,
-    },
-    update: {},
-  });
+  const [content] = await database
+    .insert(PostRevisionContents)
+    .values({ hash, data })
+    .onConflictDoNothing()
+    .returning({ id: PostRevisionContents.id });
+
+  return content.id;
 };
 
-type GetPostViewCountParams = {
-  db: InteractiveTransactionClient;
-  postId: string;
+export const getPostViewCount = (postId: string) =>
+  useCache(
+    `Post:${postId}:viewCount`,
+    async () => {
+      const [{ value }] = await database.select({ value: count() }).from(PostViews).where(eq(PostViews.postId, postId));
+      return value;
+    },
+    365 * 24 * 60 * 60,
+  );
+
+export const defragmentSpaceCollectionPosts = async (tx: Transaction, collectionId: string) => {
+  const posts = await tx
+    .select({ id: SpaceCollectionPosts.id })
+    .from(SpaceCollectionPosts)
+    .where(eq(SpaceCollectionPosts.collectionId, collectionId))
+    .orderBy(asc(SpaceCollectionPosts.order));
+
+  for (const [order, { id }] of posts.entries()) {
+    await tx.update(SpaceCollectionPosts).set({ order }).where(eq(SpaceCollectionPosts.id, id));
+  }
 };
-export const getPostViewCount = ({ db, postId }: GetPostViewCountParams) =>
-  useCache(`Post:${postId}:viewCount`, () => db.postView.count({ where: { postId } }), 365 * 24 * 60 * 60);
