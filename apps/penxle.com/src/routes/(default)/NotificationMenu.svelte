@@ -124,10 +124,33 @@
   beforeNavigate(() => {
     open = false;
   });
+
+  const solidStyle = {
+    _hover: {
+      'backgroundColor': 'gray.100',
+      '& path': {
+        fill: '[currentColor]',
+      },
+    },
+    _pressed: {
+      'backgroundColor': 'gray.100',
+      '& path': {
+        fill: '[currentColor]',
+      },
+    },
+  } as const;
 </script>
 
 <div class={center({ position: 'relative' })}>
-  <a class={circle({ size: '34px', hideFrom: 'sm' })} href="/me/notifications">
+  <a
+    class={circle({
+      size: '34px',
+      color: 'gray.800',
+      hideFrom: 'sm',
+      ...solidStyle,
+    })}
+    href="/me/notifications"
+  >
     <Icon icon={IconBell} size={24} />
   </a>
 
@@ -136,9 +159,8 @@
       size: '36px',
       color: 'gray.800',
       transition: 'common',
-      _hover: { backgroundColor: 'gray.100' },
-      _pressed: { backgroundColor: 'gray.100' },
       hideBelow: 'sm',
+      ...solidStyle,
     })}
     aria-pressed={open}
     type="button"
