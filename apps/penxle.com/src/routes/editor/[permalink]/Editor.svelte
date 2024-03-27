@@ -7,6 +7,7 @@
   import { fragment, graphql } from '$glitch';
   import { mixpanel } from '$lib/analytics';
   import { Helmet } from '$lib/components';
+  import { toast } from '$lib/notification';
   import { css } from '$styled-system/css';
   import { flex } from '$styled-system/patterns';
   import Content from './Content.svelte';
@@ -88,26 +89,31 @@
 
   const makeRevisePost = (revisionKind: PostRevisionKind) => {
     return async () => {
-      const resp = await revisePost({
-        revisionKind,
-        postId: $post.id,
-        title: $store.title,
-        subtitle: $store.subtitle,
-        content: $store.content,
-        paragraphIndent: $store.paragraphIndent,
-        paragraphSpacing: $store.paragraphSpacing,
-      });
+      try {
+        const resp = await revisePost({
+          revisionKind,
+          postId: $post.id,
+          title: $store.title,
+          subtitle: $store.subtitle,
+          content: $store.content,
+          paragraphIndent: $store.paragraphIndent,
+          paragraphSpacing: $store.paragraphSpacing,
+        });
 
-      mixpanel.track('post:revise', { postId: $post.id, revisionKind });
+        mixpanel.track('post:revise', { postId: $post.id, revisionKind });
 
-      $state.lastRevision = {
-        kind: resp.draftRevision.kind,
-        updatedAt: resp.draftRevision.updatedAt,
-      };
+        $state.lastRevision = {
+          kind: resp.draftRevision.kind,
+          updatedAt: resp.draftRevision.updatedAt,
+        };
 
-      warnUnload = false;
+        warnUnload = false;
 
-      return resp.draftRevision.id;
+        return resp.draftRevision.id;
+      } catch (err) {
+        toast.error('포스트를 저장하는 중에 문제가 발생했어요');
+        throw err;
+      }
     };
   };
 
