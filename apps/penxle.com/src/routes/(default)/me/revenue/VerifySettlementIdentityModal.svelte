@@ -57,7 +57,7 @@
     `),
   );
 
-  const { form, data, errors, touched } = createMutationForm({
+  const { form, data, errors, touched, handleSubmit } = createMutationForm({
     mutation: graphql(`
       mutation MeRevenuePage_VerifySettlementIdentityModal_VerifySettlementIdentity_Mutation(
         $input: VerifySettlementIdentityInput!
@@ -80,6 +80,12 @@
     1: '계좌 인증',
     2: '은행 선택',
     3: '입금 계좌번호 확인',
+  }[currPage];
+
+  $: disabled = {
+    1: !$touched.residentRegistrationNumberBack || !$touched.idCardIssuedDate,
+    2: !!$errors.bankCode,
+    3: !!$errors.bankAccountNumber,
   }[currPage];
 
   const bankIcons: Record<string, ComponentType> = {
@@ -138,12 +144,7 @@
   </script>
 </svelte:head>
 
-<Modal
-  style={css.raw({ height: { base: '540px', sm: '600px' } })}
-  size="md"
-  titleStyle={css.raw({ justifyContent: 'center' }, currPage === 1 && { marginX: '32px' })}
-  bind:open
->
+<Modal style={css.raw({ paddingTop: '0', minHeight: { base: '332px', sm: '412px' } })} bind:open>
   <svelte:fragment slot="title-left">
     {#if currPage > 1}
       <button type="button" on:click={() => (currPage -= 1)}>
@@ -153,7 +154,9 @@
   </svelte:fragment>
   <svelte:fragment slot="title">{title}</svelte:fragment>
 
-  <ProgressBar max={3} value={currPage} />
+  <div class={css({ marginX: '-20px' })}>
+    <ProgressBar max={3} value={currPage} />
+  </div>
 
   <form class={flex({ flexDirection: 'column', flexGrow: '1' })} use:form>
     <div
@@ -162,21 +165,18 @@
         currPage !== 1 && { display: 'none' },
       )}
     >
-      <div class={css({ marginY: '20px', paddingX: '20px' })}>
+      <div class={css({ marginY: '20px' })}>
         <div class={flex({ align: 'flex-end', gap: '6px', paddingBottom: '18px' })}>
           <label class={css({ flexGrow: '1', display: 'inline-block', marginBottom: '6px', fontSize: '14px' })}>
             이름
-            <div class={flex({ align: 'center' })}>
+            <div class={flex({ align: 'center', marginTop: '6px' })}>
               <input
                 class={css({
-                  borderWidth: '1px',
-                  borderColor: { base: 'gray.150', _hover: 'gray.400', _focus: 'gray.400' },
-                  borderRadius: '8px',
-                  paddingX: '16px',
-                  paddingY: '9px',
+                  padding: '14px',
                   fontSize: '16px',
                   backgroundColor: 'gray.100',
                   width: 'full',
+                  lineHeight: 'none',
                 })}
                 placeholder="이름"
                 readonly
@@ -190,7 +190,7 @@
           </label>
 
           <Button
-            style={css.raw({ marginBottom: '6px', width: '122px', height: '44px' })}
+            style={css.raw({ marginBottom: '6px', width: '122px', height: '48px' })}
             disabled={!!$user.personalIdentity}
             on:click={() => {
               if (!$user.personalIdentity) handleUserIdentityVerification();
@@ -240,20 +240,6 @@
           이후 세무 신고에 사용되고, 이용 목적을 달성한 이후 개인정보처리방침에 따라 파기돼요.
         </p>
       </div>
-
-      <Button
-        style={css.raw({ marginX: '20px', marginBottom: '20px' })}
-        disabled={!$touched.residentRegistrationNumberBack || !$touched.idCardIssuedDate}
-        size="lg"
-        type="submit"
-        on:click={() => {
-          if ($errors.residentRegistrationNumberBack || $errors.idCardIssuedDate) return;
-
-          currPage += 1;
-        }}
-      >
-        다음
-      </Button>
     </div>
 
     <div
@@ -267,10 +253,6 @@
           columns: 2,
           gap: '10px',
           paddingTop: '28px',
-          paddingX: '20px',
-          paddingBottom: '40px',
-          overflowY: 'auto',
-          maxHeight: { base: '420px', sm: '470px' },
         })}
       >
         {#each Object.entries(banks) as [code, name] (code)}
@@ -298,17 +280,6 @@
           </button>
         {/each}
       </div>
-
-      <Button
-        style={css.raw({ marginX: '20px', marginBottom: '20px' })}
-        disabled={!!$errors.bankCode}
-        size="lg"
-        on:click={() => {
-          currPage += 1;
-        }}
-      >
-        다음
-      </Button>
     </div>
 
     <div
@@ -317,7 +288,7 @@
         currPage !== 3 && { display: 'none' },
       )}
     >
-      <div class={css({ marginY: '20px', paddingTop: '8px', paddingX: '20px', paddingBottom: '40px' })}>
+      <div class={css({ marginY: '20px', paddingTop: '8px' })}>
         <span
           class={css({
             display: 'inline-flex',
@@ -350,15 +321,21 @@
 
         <p class={css({ fontSize: '12px', color: 'gray.500' })}>수익금이 입금될 본인 명의의 계좌번호를 입력해주세요</p>
       </div>
-
-      <Button
-        style={css.raw({ marginX: '20px', marginBottom: '20px' })}
-        disabled={!!$errors.bankAccountNumber}
-        size="lg"
-        type="submit"
-      >
-        완료
-      </Button>
     </div>
   </form>
+
+  <Button
+    slot="action"
+    style={css.raw({ width: 'full' })}
+    {disabled}
+    size="lg"
+    on:click={() => {
+      handleSubmit();
+      if ($errors.residentRegistrationNumberBack || $errors.idCardIssuedDate || currPage === 3) return;
+
+      currPage += 1;
+    }}
+  >
+    {currPage === 3 ? '완료' : '다음'}
+  </Button>
 </Modal>

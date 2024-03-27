@@ -99,9 +99,9 @@
   ];
 </script>
 
-<Modal size="md" bind:open>
+<Modal titleStyle={css.raw({ justifyContent: 'flex-start', marginLeft: '0' })} bind:open>
   <svelte:fragment slot="title">태그수정</svelte:fragment>
-  <form {id} class={flex({ direction: 'column', gap: '40px', paddingX: '20px', paddingY: '16px' })} use:form>
+  <form {id} class={flex({ direction: 'column', gap: '40px' })} use:form>
     <div>
       <h2
         class={flex({ gap: '4px', fontSize: '15px', fontWeight: 'medium', paddingTop: '4px', paddingBottom: '12px' })}

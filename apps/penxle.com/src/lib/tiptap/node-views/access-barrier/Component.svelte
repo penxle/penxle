@@ -407,72 +407,70 @@
     </div>
   </NodeView>
 
-  <Modal titleStyle={css.raw({ justifyContent: 'center', marginX: '32px' })} bind:open={postPurchaseOpen}>
+  <Modal bind:open={postPurchaseOpen}>
     <svelte:fragment slot="title">
       {node.attrs.__data.point < node.attrs.price ? '포인트 충전' : '포스트 구매'}
     </svelte:fragment>
 
-    <div class={css({ marginY: '16px', paddingX: '20px' })}>
-      <div
-        class={flex({
-          justify: 'space-between',
-          align: 'center',
-          borderRadius: '4px',
-          marginBottom: '8px',
-          paddingX: '14px',
-          paddingY: '12px',
-          backgroundColor: 'gray.50',
-        })}
-      >
-        <p class={css({ fontSize: '14px', color: 'gray.500' })}>현재 보유한 포인트</p>
+    <div
+      class={flex({
+        justify: 'space-between',
+        align: 'center',
+        borderRadius: '4px',
+        marginBottom: '8px',
+        paddingX: '14px',
+        paddingY: '12px',
+        backgroundColor: 'gray.50',
+      })}
+    >
+      <p class={css({ fontSize: '14px', color: 'gray.500' })}>현재 보유한 포인트</p>
 
-        <p class={css({ borderRadius: '4px', paddingX: '8px', paddingY: '6px', width: '117px', color: 'gray.400' })}>
-          <span class={css({ fontWeight: 'semibold', color: 'gray.500' })}>{comma(node.attrs.__data.point)}</span>
-          P
-        </p>
-      </div>
-
-      <div
-        class={flex({
-          justify: 'space-between',
-          align: 'center',
-          borderRadius: '4px',
-          marginBottom: '6px',
-          paddingX: '14px',
-          paddingY: '12px',
-          backgroundColor: 'gray.50',
-        })}
-      >
-        <p class={css({ fontSize: '14px', color: 'gray.500' })}>사용할 포인트</p>
-
-        <p
-          class={css({
-            outlineWidth: '1px',
-            outlineColor: 'gray.300',
-            borderRadius: '4px',
-            paddingX: '8px',
-            paddingY: '6px',
-            width: '117px',
-            color: 'gray.400',
-            backgroundColor: 'gray.100',
-          })}
-        >
-          <span class={css({ fontWeight: 'semibold', color: 'gray.500' })}>
-            {comma(node.attrs.price)}
-          </span>
-          P
-        </p>
-      </div>
-
-      <p class={css({ marginBottom: '32px', textAlign: 'right', fontSize: '13px', color: 'gray.400' })}>
-        {#if node.attrs.__data.point < node.attrs.price}
-          필요한 포인트
-          <mark class={css({ fontSize: '13px', fontWeight: 'medium', color: 'red.600' })}>
-            {comma(node.attrs.__data.point - node.attrs.price)}P
-          </mark>
-        {/if}
+      <p class={css({ borderRadius: '4px', paddingX: '8px', paddingY: '6px', width: '117px', color: 'gray.400' })}>
+        <span class={css({ fontWeight: 'semibold', color: 'gray.500' })}>{comma(node.attrs.__data.point)}</span>
+        P
       </p>
     </div>
+
+    <div
+      class={flex({
+        justify: 'space-between',
+        align: 'center',
+        borderRadius: '4px',
+        marginBottom: '6px',
+        paddingX: '14px',
+        paddingY: '12px',
+        backgroundColor: 'gray.50',
+      })}
+    >
+      <p class={css({ fontSize: '14px', color: 'gray.500' })}>사용할 포인트</p>
+
+      <p
+        class={css({
+          outlineWidth: '1px',
+          outlineColor: 'gray.300',
+          borderRadius: '4px',
+          paddingX: '8px',
+          paddingY: '6px',
+          width: '117px',
+          color: 'gray.400',
+          backgroundColor: 'gray.100',
+        })}
+      >
+        <span class={css({ fontWeight: 'semibold', color: 'gray.500' })}>
+          {comma(node.attrs.price)}
+        </span>
+        P
+      </p>
+    </div>
+
+    <p class={css({ marginBottom: '32px', textAlign: 'right', fontSize: '13px', color: 'gray.400' })}>
+      {#if node.attrs.__data.point < node.attrs.price}
+        필요한 포인트
+        <mark class={css({ fontSize: '13px', fontWeight: 'medium', color: 'red.600' })}>
+          {comma(node.attrs.__data.point - node.attrs.price)}P
+        </mark>
+      {/if}
+    </p>
 
     <svelte:fragment slot="action">
       {#if node.attrs.__data.point < node.attrs.price}

@@ -153,17 +153,13 @@
 </script>
 
 <Modal
-  style={css.raw({ maxWidth: 'screen' })}
+  style={css.raw({ paddingBottom: '0', maxWidth: 'screen' })}
   actionStyle={css.raw(showShareTargetMenu && { visibility: 'hidden' })}
-  titleStyle={css.raw({ justifyContent: 'center', marginX: '32px' })}
   bind:open
 >
   <button
     slot="title-left"
     class={css({
-      position: 'absolute',
-      left: '0',
-      paddingX: '24px',
       transition: 'opacity',
       _disabled: { opacity: '0', visibility: 'hidden' },
     })}
@@ -178,9 +174,6 @@
     <article
       class={css({
         position: 'relative',
-        marginX: '20px',
-        marginTop: '20px',
-        marginBottom: '16px',
         borderWidth: '1px',
         borderColor: backgroundColor === '#FFFFFF' ? '[gray.900/10]' : 'transparent',
         alignSelf: 'center',
@@ -241,7 +234,7 @@
           <label class={css({ _peerDisabled: { color: 'gray.300' } })} for="etc-share-button">기타</label>
         </div>
       </section>
-      <section class={flex({ gap: '8px', paddingX: '20px', paddingY: '8px', overflowX: 'auto', scrollbar: 'hidden' })}>
+      <section class={flex({ gap: '8px', paddingY: '8px', overflowX: 'auto', scrollbar: 'hidden' })}>
         {#each backgroundColors as bgColor (bgColor)}
           <label>
             <input
@@ -266,7 +259,7 @@
           </label>
         {/each}
       </section>
-      <section class={flex({ align: 'center', gap: '16px', paddingX: '20px', paddingY: '14px' })} role="group">
+      <section class={flex({ align: 'center', gap: '16px', paddingY: '14px' })} role="group">
         {#each fontFamilies as family (family)}
           <button
             style:font-family={family.value}
@@ -294,6 +287,7 @@
           gap: '16px',
           borderYWidth: '1px',
           borderYColor: 'gray.200',
+          marginX: '-20px',
           paddingX: '20px',
           paddingY: '14px',
         })}
@@ -325,7 +319,7 @@
 
   <Button
     slot="action"
-    style={css.raw({ flex: '1', marginTop: '16px' })}
+    style={css.raw({ flex: '1' })}
     disabled={generatedPostShareImage === null}
     size="lg"
     on:click={() => (showShareTargetMenu = true)}
