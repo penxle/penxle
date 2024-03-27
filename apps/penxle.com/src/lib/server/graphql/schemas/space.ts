@@ -738,6 +738,24 @@ export const spaceSchema = defineSchema((builder) => {
           },
         });
 
+        if (input.isPublic === false) {
+          const memberUserIds = await db.spaceMember
+            .findMany({
+              where: {
+                spaceId: input.spaceId,
+                state: 'ACTIVE',
+              },
+            })
+            .then((members) => members.map((member) => member.userId));
+
+          await db.spaceFollow.deleteMany({
+            where: {
+              spaceId: input.spaceId,
+              userId: { notIn: memberUserIds },
+            },
+          });
+        }
+
         await indexSpace(space);
         await indexPostByQuery({
           db,
