@@ -10,9 +10,9 @@
   import IconPinnedFilled from '~icons/tabler/pinned-filled';
   import { fragment, graphql } from '$glitch';
   import { mixpanel } from '$lib/analytics';
-  import { Avatar, Icon } from '$lib/components';
+  import { Alert, Avatar, Icon } from '$lib/components';
   import { Menu, MenuItem } from '$lib/components/menu';
-  import { Button, Modal } from '$lib/components/v2';
+  import { Button } from '$lib/components/v2';
   import { css } from '$styled-system/css';
   import { flex } from '$styled-system/patterns';
   import CommentInput from './CommentInput.svelte';
@@ -439,37 +439,18 @@
     <CommentInput {$query} parentId={$postComment.id} bind:editing={replyInputOpen} />
   {/if}
 
-  <Modal
-    actionStyle={css.raw({
-      gap: '6px',
-      borderWidth: '0',
-      paddingTop: '28px',
-      paddingBottom: '24px',
-      sm: { paddingX: '28px', paddingBottom: '28px' },
-    })}
-    size="sm"
-    titleStyle={css.raw({ fontSize: '18px', fontWeight: 'semibold' })}
-    bind:open={blockMasqueradeOpen}
-  >
+  <Alert bind:open={blockMasqueradeOpen}>
     <svelte:fragment slot="title">{$postComment.profile.name}님을 차단할까요?</svelte:fragment>
 
-    <div class={css({ marginTop: '4px', paddingX: { base: '24px', sm: '28px' }, fontSize: '14px', color: 'gray.600' })}>
+    <svelte:fragment slot="content">
       차단된 유저는 스페이스의 모든 게시물을 볼 수 없으며, 댓글을 달 수 없어요
       <br />
       차단 해지는 [스페이스 설정 - 독자관리]에서 가능해요
-    </div>
+    </svelte:fragment>
 
     <svelte:fragment slot="action">
+      <Button size="lg" variant="gray-sub-fill" on:click={() => (blockMasqueradeOpen = false)}>취소</Button>
       <Button
-        style={css.raw({ width: 'full' })}
-        size="lg"
-        variant="gray-outline"
-        on:click={() => (blockMasqueradeOpen = false)}
-      >
-        취소
-      </Button>
-      <Button
-        style={css.raw({ width: 'full' })}
         size="lg"
         on:click={async () => {
           if (!$postComment.masquerade || !$query.post.space) return;
@@ -484,5 +465,5 @@
         차단
       </Button>
     </svelte:fragment>
-  </Modal>
+  </Alert>
 {/if}

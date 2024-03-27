@@ -21,9 +21,9 @@
   import { afterNavigate, goto } from '$app/navigation';
   import { fragment, graphql } from '$glitch';
   import { mixpanel } from '$lib/analytics';
-  import { Avatar, Chip, Icon, Image, Tooltip } from '$lib/components';
+  import { Alert, Avatar, Chip, Icon, Image, Tooltip } from '$lib/components';
   import { Menu, MenuItem } from '$lib/components/menu';
-  import { Button, Modal } from '$lib/components/v2';
+  import { Button } from '$lib/components/v2';
   import { categoryFilter, pairFilter } from '$lib/const/feed';
   import { EmojiPicker } from '$lib/emoji';
   import Emoji from '$lib/emoji/Emoji.svelte';
@@ -1640,29 +1640,13 @@
 
 <LoginRequireModal bind:open={loginRequireOpen} />
 
-<Modal
-  actionStyle={css.raw({ gap: '6px', borderWidth: '0', paddingY: '24px', sm: { padding: '28px' } })}
-  size="sm"
-  titleStyle={css.raw({ fontSize: '18px', fontWeight: 'semibold' })}
-  bind:open={openDeletePostWarning}
->
+<Alert bind:open={openDeletePostWarning}>
   <svelte:fragment slot="title">포스트를 삭제하시겠어요?</svelte:fragment>
-
-  <p class={css({ marginTop: '4px', paddingX: { base: '24px', sm: '28px' }, fontSize: '14px', color: 'gray.600' })}>
-    삭제된 글은 복구할 수 없어요
-  </p>
+  <svelte:fragment slot="content">삭제된 글은 복구할 수 없어요</svelte:fragment>
 
   <svelte:fragment slot="action">
+    <Button size="lg" variant="gray-sub-fill" on:click={() => (openDeletePostWarning = false)}>취소</Button>
     <Button
-      style={css.raw({ width: 'full' })}
-      size="lg"
-      variant="gray-outline"
-      on:click={() => (openDeletePostWarning = false)}
-    >
-      취소
-    </Button>
-    <Button
-      style={css.raw({ width: 'full' })}
       size="lg"
       on:click={async () => {
         await goto(`/${$query.post.space?.slug}`);
@@ -1673,6 +1657,6 @@
       삭제
     </Button>
   </svelte:fragment>
-</Modal>
+</Alert>
 
 <TagManageModal $post={$query.post} bind:open={openTagManageModal} />
