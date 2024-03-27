@@ -6,7 +6,6 @@
   import { FormField, TextInput } from '$lib/components/forms';
   import { ThumbnailPicker } from '$lib/components/media';
   import { createMutationForm } from '$lib/form';
-  import { toast } from '$lib/notification';
   import { UpdateSpaceCollectionSchema } from '$lib/validations';
   import { css, cx } from '$styled-system/css';
   import { center } from '$styled-system/patterns';
@@ -56,7 +55,6 @@
     onSuccess: ({ id }) => {
       open = false;
       mixpanel.track('space:collection:create', { spaceId, collectionId: id });
-      toast.success('컬렉션이 생성되었어요');
     },
   });
 </script>

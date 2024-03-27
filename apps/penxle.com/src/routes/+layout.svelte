@@ -45,7 +45,7 @@
 
   onMount(() => {
     if ($query.flash) {
-      toast[$query.flash.type as 'success' | 'error']($query.flash.message);
+      toast($query.flash.message);
     }
   });
 </script>

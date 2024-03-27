@@ -7,7 +7,6 @@
   import { Editable, PopupSearch } from '$lib/components/forms';
   import Image from '$lib/components/Image.svelte';
   import { createMutationForm } from '$lib/form';
-  import { toast } from '$lib/notification';
   import { SetSpaceCollectionPostSchema } from '$lib/validations';
   import { css } from '$styled-system/css';
   import { flex } from '$styled-system/patterns';
@@ -118,7 +117,6 @@
         collectionId: $collection.id,
         postIds: [...registeredPostIds.values()],
       });
-      toast.success('컬렉션에 등록된 포스트 목록을 수정되었어요');
     },
   });
 
@@ -151,7 +149,6 @@
             name,
             thumbnailId: $collection.thumbnail?.id,
           });
-          toast.success('컬렉션 이름이 변경되었어요');
         }
 
         // @ts-expect-error: currentTarget.name except HTMLInputElement

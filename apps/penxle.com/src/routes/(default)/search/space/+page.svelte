@@ -6,7 +6,6 @@
   import { graphql } from '$glitch';
   import { Helmet, Icon, Image } from '$lib/components';
   import { TabHead, TabHeadItem } from '$lib/components/tab';
-  import { toast } from '$lib/notification';
   import { css } from '$styled-system/css';
   import { center, flex } from '$styled-system/patterns';
   import LoginRequireModal from '../../LoginRequireModal.svelte';
@@ -141,7 +140,6 @@
               on:click={async () => {
                 await unfollowSpace({ spaceId: space.id });
                 mixpanel.track('space:unfollow', { spaceId: space.id, via: 'search' });
-                toast.success('관심 스페이스 해제되었어요');
               }}
             >
               <Icon icon={IconCheck} />
@@ -169,7 +167,6 @@
 
                 await followSpace({ spaceId: space.id });
                 mixpanel.track('space:follow', { spaceId: space.id, via: 'search' });
-                toast.success('관심 스페이스로 등록되었어요');
               }}
             >
               <Icon icon={IconPlus} />

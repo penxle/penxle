@@ -5,7 +5,6 @@
   import { Button, Icon, Modal } from '$lib/components';
   import { PopupSearch } from '$lib/components/forms';
   import Image from '$lib/components/Image.svelte';
-  import { toast } from '$lib/notification';
   import { css } from '$styled-system/css';
   import { flex } from '$styled-system/patterns';
   import type { MeCabinetsPage_FollowSpaceModal_user } from '$glitch';
@@ -144,7 +143,6 @@
             on:click={async () => {
               await unfollowSpace({ spaceId: space.id });
               mixpanel.track('space:unfollow', { spaceId: space.id, via: 'cabinet' });
-              toast.success('관심 스페이스 해제되었어요');
             }}
           >
             해제
@@ -157,7 +155,6 @@
             on:click={async () => {
               await followSpace({ spaceId: space.id });
               mixpanel.track('space:follow', { spaceId: space.id, via: 'cabinet' });
-              toast.success('관심 스페이스로 등록되었어요');
             }}
           >
             등록

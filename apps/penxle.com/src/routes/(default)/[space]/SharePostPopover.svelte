@@ -208,9 +208,8 @@
         on:click={async () => {
           try {
             navigator.clipboard.writeText(href);
-            toast.success('클립보드에 복사되었어요');
           } catch (err) {
-            toast.error('클립보드 복사를 실패했어요');
+            toast('클립보드 복사를 실패했어요');
             console.error(err);
           }
         }}

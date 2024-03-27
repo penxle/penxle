@@ -6,7 +6,6 @@
   import { FormField, TextInput } from '$lib/components/forms';
   import { ThumbnailPicker } from '$lib/components/media';
   import { createMutationForm } from '$lib/form';
-  import { toast } from '$lib/notification';
   import { UpdateUserProfileSchema } from '$lib/validations';
   import { css } from '$styled-system/css';
   import { center } from '$styled-system/patterns';
@@ -53,7 +52,6 @@
     onSuccess: () => {
       mixpanel.track('user:profile:update');
       open = false;
-      toast.success('프로필이 수정되었어요');
     },
   });
 

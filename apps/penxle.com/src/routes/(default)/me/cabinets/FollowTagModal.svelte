@@ -2,7 +2,6 @@
   import { fragment, graphql } from '$glitch';
   import { mixpanel } from '$lib/analytics';
   import { Button, Modal, Tag } from '$lib/components';
-  import { toast } from '$lib/notification';
   import { css } from '$styled-system/css';
   import { flex } from '$styled-system/patterns';
   import type { ChangeEventHandler } from 'svelte/elements';
@@ -87,7 +86,6 @@
         variant="outlined"
         on:click={async () => {
           await unfollowTags();
-          toast.success('선택한 태그들의 관심 해제되었어요');
           tags = [];
         }}
       >

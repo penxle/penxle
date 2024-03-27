@@ -3,13 +3,11 @@ import { browser } from '$app/environment';
 
 export type Toast = {
   id: symbol;
-  type: 'success' | 'error';
-  title?: string;
   message: string;
   duration: number;
 };
 
-type ToastOptions = Partial<Pick<Toast, 'title' | 'duration'>>;
+type ToastOptions = Partial<Pick<Toast, 'duration'>>;
 
 export const store = writable<Toast[]>([]);
 const append = (toast: Omit<Toast, 'id'>) => {
@@ -19,8 +17,4 @@ const append = (toast: Omit<Toast, 'id'>) => {
   store.update((toasts) => [...toasts, { id: Symbol(), ...toast }]);
 };
 
-export const toast = {
-  success: (message: string, options?: ToastOptions) =>
-    append({ message, type: 'success', duration: 3000, ...options }),
-  error: (message: string, options?: ToastOptions) => append({ message, type: 'error', duration: 10_000, ...options }),
-};
+export const toast = (message: string, options?: ToastOptions) => append({ message, duration: 3000, ...options });

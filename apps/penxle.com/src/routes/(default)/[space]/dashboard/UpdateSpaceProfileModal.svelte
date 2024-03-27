@@ -5,7 +5,6 @@
   import { FormField, Switch, TextInput } from '$lib/components/forms';
   import { ThumbnailPicker } from '$lib/components/media';
   import { createMutationForm } from '$lib/form';
-  import { toast } from '$lib/notification';
   import { UpdateSpaceProfileSchema } from '$lib/validations';
   import { css } from '$styled-system/css';
   import { center, flex } from '$styled-system/patterns';
@@ -74,7 +73,6 @@
     onSuccess: () => {
       open = false;
       mixpanel.track('space:profile:update', { spaceId: $query.space.id });
-      toast.success('프로필이 수정되었어요');
     },
   });
 

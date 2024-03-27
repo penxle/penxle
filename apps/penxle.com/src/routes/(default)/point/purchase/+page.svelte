@@ -44,7 +44,7 @@
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const callback = async (resp: any) => {
         if (resp.error_msg) {
-          toast.error(resp.error_msg);
+          toast(resp.error_msg);
           return;
         }
 

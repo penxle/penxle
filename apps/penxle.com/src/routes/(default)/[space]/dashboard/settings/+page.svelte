@@ -8,7 +8,6 @@
   import { FormField, Switch, TextArea, TextInput } from '$lib/components/forms';
   import { ThumbnailPicker } from '$lib/components/media';
   import { createMutationForm } from '$lib/form';
-  import { toast } from '$lib/notification';
   import { pageSubTitle } from '$lib/stores';
   import { UpdateSpaceSchema } from '$lib/validations';
   import { css } from '$styled-system/css';
@@ -90,7 +89,6 @@
     }),
     onSuccess: async () => {
       mixpanel.track('space:update', { spaceId: $query.space.id });
-      toast.success('스페이스 설정이 변경되었어요');
       await goto(`/${$data.slug}/dashboard/settings`);
     },
   });

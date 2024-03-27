@@ -6,7 +6,6 @@
   import { graphql } from '$glitch';
   import { Button, Helmet, Icon } from '$lib/components';
   import { Radio } from '$lib/components/forms';
-  import { toast } from '$lib/notification';
   import { comma } from '$lib/utils';
   import { css } from '$styled-system/css';
   import { center, flex } from '$styled-system/patterns';
@@ -131,7 +130,6 @@
               variant="outlined"
               on:click={() => {
                 navigator.clipboard.writeText($query.pointPurchase.paymentResult.vbank_num);
-                toast.success('계좌번호가 복사되었어요');
               }}
             >
               <Icon style={css.raw({ marginRight: '4px', color: 'gray.500' })} icon={IconCopy} />

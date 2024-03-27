@@ -4,7 +4,6 @@
   import { Button, Modal } from '$lib/components';
   import { FormField, TextInput } from '$lib/components/forms';
   import { createMutationForm } from '$lib/form';
-  import { toast } from '$lib/notification';
   import { UpdateUserEmailSchema } from '$lib/validations';
   import { css } from '$styled-system/css';
   import { flex } from '$styled-system/patterns';
@@ -22,7 +21,6 @@
     onSuccess: () => {
       mixpanel.track('user:email:update:start');
       open = false;
-      toast.success('입력하신 이메일로 인증메일을 전송했어요');
     },
   });
 </script>

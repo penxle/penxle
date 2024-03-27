@@ -6,7 +6,6 @@
   import { fragment, graphql } from '$glitch';
   import { mixpanel } from '$lib/analytics';
   import { Button, Modal } from '$lib/components';
-  import { toast } from '$lib/notification';
   import { css } from '$styled-system/css';
   import { center, flex } from '$styled-system/patterns';
   import type { MeSettingsPage_UserSingleSignOn_user, UserSingleSignOnProvider } from '$glitch';
@@ -118,7 +117,6 @@
       on:click={async () => {
         await unlinkUserSingleSignOn({ provider });
         mixpanel.track('user:single-sign-on:unlink', { provider });
-        toast.success(`${providerName} 계정 연동이 해제되었어요`);
         open = false;
       }}
     >

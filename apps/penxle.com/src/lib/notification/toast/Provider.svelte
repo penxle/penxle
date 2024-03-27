@@ -6,13 +6,14 @@
 
 <div
   class={flex({
+    align: 'center',
     position: 'fixed',
-    left: '0',
-    bottom: '0',
+    top: '74px',
+    left: '1/2',
+    translate: 'auto',
+    translateX: '-1/2',
     direction: 'column',
     gap: '8px',
-    paddingX: '20px',
-    paddingY: '16px',
     width: 'screen',
     zIndex: '100',
     pointerEvents: 'none',
