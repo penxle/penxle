@@ -18,5 +18,7 @@
     잠시 후 다시 시도해주세요!
   </p>
 
-  <Link style={css.raw({ fontSize: '14px' })} colored href="https://twitter.com/penxle" underline>@penxle</Link>
+  <Link style={css.raw({ fontSize: '14px' })} colored href="https://twitter.com/pencil_site" underline>
+    @pencil_site
+  </Link>
 </div>
