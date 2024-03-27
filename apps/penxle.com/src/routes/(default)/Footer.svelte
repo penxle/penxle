@@ -3,7 +3,7 @@
   import IconGithub from '~icons/simple-icons/github';
   import IconInstagram from '~icons/simple-icons/instagram';
   import IconTwitter from '~icons/simple-icons/twitter';
-  import CompanyLogo from '$assets/branding/company-logo.svg?component';
+  import Logo from '$assets/branding/logo.svg?component';
   import { Icon, Link } from '$lib/components';
   import { css } from '$styled-system/css';
   import { flex } from '$styled-system/patterns';
@@ -31,7 +31,7 @@
   >
     <div>
       <section class={flex({ justify: 'space-between', align: 'center', marginBottom: '16px' })}>
-        <CompanyLogo class={css({ height: '64px', color: 'gray.900' })} />
+        <Logo class={css({ height: '22px', color: 'gray.900' })} />
       </section>
 
       <section class={flex({ direction: 'column', gap: '4px' })}>

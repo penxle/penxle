@@ -19,7 +19,7 @@
   >
     <div class={flex({ align: 'center', marginX: 'auto', height: '64px', maxWidth: '1000px' })}>
       <a href="https://penxle.com">
-        <Logo class={css({ width: '32px', height: '32px' })} />
+        <Logo class={css({ height: '25px', color: 'gray.900' })} />
       </a>
 
       <div class={css({ borderLeftWidth: '1px', borderLeftColor: 'gray.5', marginX: '16px', height: '32px' })} />
