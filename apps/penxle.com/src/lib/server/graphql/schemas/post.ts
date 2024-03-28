@@ -1171,9 +1171,9 @@ export const postSchema = defineSchema((builder) => {
         document = await sanitizeContent(document);
 
         const accessBarrierPosition = document.findIndex((node) => node.type === 'access_barrier');
-        const accessBarrier = document[accessBarrierPosition];
-        const freeContentData = document.slice(0, accessBarrierPosition);
-        const paidContentData = document.slice(accessBarrierPosition + 1);
+        const accessBarrier = accessBarrierPosition === -1 ? null : document[accessBarrierPosition];
+        const freeContentData = accessBarrierPosition === -1 ? document : document.slice(0, accessBarrierPosition);
+        const paidContentData = accessBarrierPosition === -1 ? [] : document.slice(accessBarrierPosition + 1);
 
         const freeContent = isEmptyContent(freeContentData)
           ? null
@@ -1181,7 +1181,7 @@ export const postSchema = defineSchema((builder) => {
         const paidContent = isEmptyContent(paidContentData)
           ? null
           : await revisePostContent({ db, contentData: paidContentData });
-        const price: number | null = paidContent ? accessBarrier.attrs?.price ?? null : null;
+        const price: number | null = paidContent ? accessBarrier?.attrs?.price ?? null : null;
 
         const revisionData = {
           userId: context.session.userId,
