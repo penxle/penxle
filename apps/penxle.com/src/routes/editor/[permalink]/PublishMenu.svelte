@@ -1,6 +1,5 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import { slide } from 'svelte/transition';
   import IconCheckmark from '~icons/effit/checkmark';
   import IconDot from '~icons/effit/dot';
   import IconGlobe from '~icons/effit/globe';
@@ -8,8 +7,6 @@
   import IconUsers from '~icons/effit/users';
   import IconAlertCircle from '~icons/tabler/alert-circle';
   import IconAlertTriangle from '~icons/tabler/alert-triangle';
-  import IconCaretDownFilled from '~icons/tabler/caret-down-filled';
-  import IconCaretUpFilled from '~icons/tabler/caret-up-filled';
   import IconPhoto from '~icons/tabler/photo';
   import IconPlus from '~icons/tabler/plus';
   import IconTrash from '~icons/tabler/trash';
@@ -22,6 +19,7 @@
   import ThumbnailPicker from '$lib/components/media/ThumbnailPicker.svelte';
   import { CreateCollectionModal } from '$lib/components/pages/collections';
   import { Button } from '$lib/components/v2';
+  import { Select, SelectItem } from '$lib/components/v2/select';
   import { createMutationForm } from '$lib/form';
   import { PublishPostInputSchema } from '$lib/validations/post';
   import { css } from '$styled-system/css';
@@ -514,133 +512,79 @@
             스페이스
           </p>
 
-          <div class={css({ position: 'relative' })}>
+          <Select
+            style={css.raw({ height: '[66px!]' })}
+            disabled={$post.state === 'PUBLISHED'}
+            listStyle={css.raw({ top: '66px' })}
+            bind:open={spaceSelectorOpen}
+          >
             <Tooltip
+              slot="placeholder"
+              style={css.raw({ flexGrow: '1', textAlign: 'left', truncate: true })}
               enabled={$post.state === 'PUBLISHED'}
               message="이미 게시한 포스트는 스페이스를 바꿀 수 없어요"
               offset={16}
               placement="top"
             >
-              <button
-                class={css(
-                  {
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    borderWidth: '1px',
-                    borderColor: 'gray.200',
-                    borderRadius: '6px',
-                    padding: '12px',
-                    width: 'full',
-                    backgroundColor: { _hover: 'gray.50', _disabled: 'gray.50' },
-                  },
-                  spaceSelectorOpen && { borderBottomRadius: '[0!]' },
-                )}
-                disabled={$post.state === 'PUBLISHED'}
-                type="button"
-                on:click={() => (spaceSelectorOpen = true)}
-              >
-                {#if selectedSpace}
-                  <div class={flex({ align: 'center', gap: '8px' })}>
-                    <Image
-                      style={css.raw({ flex: 'none', borderRadius: '2px', size: '24px' })}
-                      $image={selectedSpace.icon}
-                    />
-                    <span class={css({ fontSize: '13px', fontWeight: 'medium', truncate: true })}>
+              {#if selectedSpace}
+                <div class={flex({ align: 'center', gap: '8px' })}>
+                  <Image style={css.raw({ flex: 'none', size: '38px' })} $image={selectedSpace.icon} />
+                  <div class={css({ truncate: true })}>
+                    <p class={css({ marginBottom: '2px', fontSize: '12px', color: 'gray.500' })}>
+                      {selectedSpace.visibility === 'PUBLIC' ? '공개 스페이스' : '비공개 스페이스'}
+                    </p>
+                    <p class={css({ fontSize: '14px', fontWeight: 'semibold', truncate: true })}>
                       {selectedSpace.name}
-                    </span>
+                    </p>
                   </div>
-                {:else}
-                  <span class={css({ fontSize: '13px', color: 'gray.500' })}>스페이스를 선택해주세요</span>
-                {/if}
-
-                <p class={center({ size: '24px' })}>
-                  {#if spaceSelectorOpen}
-                    <Icon icon={IconCaretUpFilled} />
-                  {:else}
-                    <Icon icon={IconCaretDownFilled} />
-                  {/if}
-                </p>
-              </button>
+                </div>
+              {:else}
+                <div class={flex({ align: 'center', gap: '8px' })}>
+                  <div class={css({ flex: 'none', size: '38px', backgroundColor: 'gray.50' })} />
+                  <div class={css({ truncate: true })}>
+                    <p class={css({ marginBottom: '2px', fontSize: '12px', color: 'gray.500' })}>스페이스 공개 여부</p>
+                    <p class={css({ fontSize: '14px', fontWeight: 'semibold', truncate: true })}>
+                      스페이스를 선택해주세요
+                    </p>
+                  </div>
+                </div>
+              {/if}
             </Tooltip>
 
-            {#if spaceSelectorOpen}
-              <div
-                class={css({ position: 'fixed', inset: '0', zIndex: '50' })}
-                role="button"
-                tabindex="-1"
-                on:click={() => (spaceSelectorOpen = false)}
-                on:keypress={null}
-              />
+            {#each $query.me.spaces as space (space.id)}
+              <SelectItem
+                pressed={selectedSpaceId === space.id}
+                on:click={() => {
+                  if (selectedSpaceId !== space.id) {
+                    selectedCollectionId = undefined;
+                  }
 
-              <ul
-                class={css({
-                  position: 'absolute',
-                  top: '48px',
-                  left: '0',
-                  borderWidth: '1px',
-                  borderColor: 'gray.200',
-                  borderBottomRadius: '6px',
-                  width: 'full',
-                  backgroundColor: 'gray.5',
-                  zIndex: '50',
-                })}
-                transition:slide={{ axis: 'y', duration: 250 }}
+                  selectedSpaceId = space.id;
+                  spaceSelectorOpen = false;
+                }}
               >
-                {#each $query.me.spaces as space (space.id)}
-                  <li class={css({ borderBottomWidth: '1px', borderBottomColor: 'gray.200' })}>
-                    <button
-                      class={flex({
-                        justify: 'space-between',
-                        align: 'center',
-                        padding: '12px',
-                        width: 'full',
-                        _hover: { backgroundColor: 'gray.100' },
-                      })}
-                      type="button"
-                      on:click={() => {
-                        if (selectedSpaceId !== space.id) {
-                          selectedCollectionId = undefined;
-                        }
-
-                        selectedSpaceId = space.id;
-                        spaceSelectorOpen = false;
-                      }}
-                    >
-                      <div class={flex({ align: 'center', gap: '8px' })}>
-                        <Image
-                          style={css.raw({ flex: 'none', borderRadius: '2px', size: '24px' })}
-                          $image={space.icon}
-                        />
-                        <span class={css({ fontSize: '13px', fontWeight: 'medium', truncate: true })}>
-                          {space.name}
-                        </span>
-                      </div>
-                    </button>
-                  </li>
-                {/each}
-                <li>
-                  <button
-                    class={flex({
-                      justify: 'space-between',
-                      align: 'center',
-                      borderBottomRadius: '6px',
-                      padding: '12px',
-                      width: 'full',
-                      fontSize: '13px',
-                      fontWeight: 'medium',
-                      _hover: { backgroundColor: 'gray.100' },
-                    })}
-                    type="button"
-                    on:click={() => (createSpaceOpen = true)}
-                  >
-                    새로운 스페이스 추가하기
-                    <Icon style={css.raw({ color: 'gray.400' })} icon={IconPlus} size={24} />
-                  </button>
-                </li>
-              </ul>
-            {/if}
-          </div>
+                <div class={flex({ align: 'center', gap: '8px', truncate: true })}>
+                  <Image style={css.raw({ flex: 'none', size: '38px' })} $image={space.icon} />
+                  <div class={css({ truncate: true })}>
+                    <p class={css({ marginBottom: '2px', fontSize: '12px', color: 'gray.500' })}>
+                      {space.visibility === 'PUBLIC' ? '공개 스페이스' : '비공개 스페이스'}
+                    </p>
+                    <p class={css({ fontSize: '14px', truncate: true })}>
+                      {space.name}
+                    </p>
+                  </div>
+                </div>
+              </SelectItem>
+            {/each}
+            <svelte:fragment slot="create">
+              <SelectItem state="create" on:click={() => (createSpaceOpen = true)}>
+                <div class={flex({ align: 'center', gap: '4px' })}>
+                  <Icon icon={IconPlus} />
+                  새로운 스페이스 추가하기
+                </div>
+              </SelectItem>
+            </svelte:fragment>
+          </Select>
         </div>
 
         <div>
@@ -656,130 +600,37 @@
             컬렉션
           </p>
 
-          <div class={css({ position: 'relative' })}>
-            <button
-              class={css(
-                {
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  borderWidth: '1px',
-                  borderColor: 'gray.200',
-                  borderRadius: '6px',
-                  padding: '12px',
-                  width: 'full',
-                  backgroundColor: { _hover: 'gray.100', _disabled: 'gray.100' },
-                },
-                collectionSelectorOpen && { borderBottomRadius: '[0!]' },
-              )}
-              disabled={!selectedSpace}
-              type="button"
-              on:click={() => (collectionSelectorOpen = true)}
-            >
+          <Select disabled={!selectedSpace} size="md" bind:open={collectionSelectorOpen}>
+            <span slot="placeholder">
               {#if selectedCollection}
-                <span class={css({ fontSize: '13px', fontWeight: 'medium', truncate: true })}>
-                  {selectedCollection.name}
-                </span>
+                {selectedCollection.name}
               {:else}
-                <span class={css({ fontSize: '13px', color: 'gray.500' })}>컬렉션을 선택해주세요</span>
+                컬렉션을 선택해주세요
               {/if}
-
-              <p class={center({ size: '24px' })}>
-                {#if collectionSelectorOpen}
-                  <Icon icon={IconCaretUpFilled} />
-                {:else}
-                  <Icon icon={IconCaretDownFilled} />
-                {/if}
-              </p>
-            </button>
+            </span>
 
             {#if collectionSelectorOpen && selectedSpace?.collections}
-              <div
-                class={css({ position: 'fixed', inset: '0', zIndex: '50' })}
-                role="button"
-                tabindex="-1"
-                on:click={() => (collectionSelectorOpen = false)}
-                on:keypress={null}
-              />
-
-              <ul
-                class={css({
-                  position: 'absolute',
-                  top: '48px',
-                  left: '0',
-                  borderWidth: '1px',
-                  borderColor: 'gray.200',
-                  borderBottomRadius: '6px',
-                  width: 'full',
-                  backgroundColor: 'gray.5',
-                  zIndex: '50',
-                })}
-                transition:slide={{ axis: 'y', duration: 250 }}
-              >
-                {#if selectedCollectionId !== undefined}
-                  <li class={css({ borderBottomWidth: '1px', borderBottomColor: 'gray.200' })}>
-                    <button
-                      class={flex({
-                        justify: 'space-between',
-                        align: 'center',
-                        padding: '12px',
-                        width: 'full',
-                        _hover: { backgroundColor: 'gray.100' },
-                      })}
-                      type="button"
-                      on:click={() => {
-                        selectedCollectionId = undefined;
-                        collectionSelectorOpen = false;
-                      }}
-                    >
-                      <span class={css({ fontSize: '13px', fontWeight: 'medium', truncate: true })}>선택 안함</span>
-                    </button>
-                  </li>
-                {/if}
-                {#each selectedSpace?.collections as collection (collection.id)}
-                  <li class={css({ borderBottomWidth: '1px', borderBottomColor: 'gray.200' })}>
-                    <button
-                      class={flex({
-                        justify: 'space-between',
-                        align: 'center',
-                        padding: '12px',
-                        width: 'full',
-                        _hover: { backgroundColor: 'gray.100' },
-                      })}
-                      type="button"
-                      on:click={() => {
-                        selectedCollectionId = collection.id;
-                        collectionSelectorOpen = false;
-                      }}
-                    >
-                      <span class={css({ fontSize: '13px', fontWeight: 'medium', truncate: true })}>
-                        {collection.name}
-                      </span>
-                    </button>
-                  </li>
-                {/each}
-                <li>
-                  <button
-                    class={flex({
-                      justify: 'space-between',
-                      align: 'center',
-                      borderBottomRadius: '6px',
-                      padding: '12px',
-                      width: 'full',
-                      fontSize: '13px',
-                      fontWeight: 'medium',
-                      _hover: { backgroundColor: 'gray.100' },
-                    })}
-                    type="button"
-                    on:click={() => (createCollectionOpen = true)}
-                  >
-                    새로운 컬렉션 추가하기
-                    <Icon style={css.raw({ color: 'gray.400' })} icon={IconPlus} size={24} />
-                  </button>
-                </li>
-              </ul>
+              {#each selectedSpace?.collections as collection (collection.id)}
+                <SelectItem
+                  on:click={() => {
+                    selectedCollectionId = collection.id;
+                    collectionSelectorOpen = false;
+                  }}
+                >
+                  {collection.name}
+                </SelectItem>
+              {/each}
             {/if}
-          </div>
+
+            <svelte:fragment slot="create">
+              <SelectItem state="create" on:click={() => (createCollectionOpen = true)}>
+                <div class={flex({ align: 'center', gap: '4px' })}>
+                  <Icon icon={IconPlus} />
+                  새로운 컬렉션 추가하기
+                </div>
+              </SelectItem>
+            </svelte:fragment>
+          </Select>
         </div>
       </div>
 
