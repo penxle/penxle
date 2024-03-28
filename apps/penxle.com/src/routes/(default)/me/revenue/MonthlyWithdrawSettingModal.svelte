@@ -57,53 +57,51 @@
   `);
 </script>
 
-<Modal titleStyle={css.raw({ justifyContent: 'center', marginX: '32px' })} bind:open>
+<Modal style={css.raw({ paddingBottom: '0' })} bind:open>
   <svelte:fragment slot="title">자동 출금 설정</svelte:fragment>
 
-  <div class={css({ paddingTop: '16px', paddingX: '20px' })}>
-    <div class={flex({ align: 'center', justify: 'space-between' })}>
-      <div class={flex({ flexDirection: 'column', gap: '2px' })}>
-        <p class={css({ fontWeight: 'semibold' })}>자동출금</p>
-        {#if $user.withdrawalConfig?.monthlyWithdrawalDue}
-          <span class={css({ fontSize: '10px', color: 'gray.400' })}>
-            ({dayjs($user.withdrawalConfig.monthlyWithdrawalDue).formatAsDate()} 출금예정)
-          </span>
-        {/if}
-      </div>
-      <Switch
-        checked={!!$user.withdrawalConfig?.monthlyWithdrawalEnabled}
-        on:change={async () => {
-          if ($user.withdrawalConfig?.monthlyWithdrawalEnabled) {
-            await disableMonthlyWithdrawal();
-            mixpanel.track('user:disable-monthly-withdrawal');
-          } else {
-            await enableMonthlyWithdrawal();
-            mixpanel.track('user:enable-monthly-withdrawal');
-          }
-        }}
-      />
+  <div class={flex({ align: 'center', justify: 'space-between' })}>
+    <div class={flex({ flexDirection: 'column', gap: '2px' })}>
+      <p class={css({ fontWeight: 'semibold' })}>자동출금</p>
+      {#if $user.withdrawalConfig?.monthlyWithdrawalDue}
+        <span class={css({ fontSize: '10px', color: 'gray.400' })}>
+          ({dayjs($user.withdrawalConfig.monthlyWithdrawalDue).formatAsDate()} 출금예정)
+        </span>
+      {/if}
     </div>
-
-    <div
-      class={flex({
-        align: 'center',
-        gap: '2px',
-        marginTop: '12px',
-        marginBottom: '20px',
-        paddingX: '10px',
-        paddingY: '8px',
-        borderRadius: '6px',
-        fontSize: '13px',
-        color: 'gray.500',
-        backgroundColor: 'gray.50',
-      })}
-    >
-      <span>{banks[$user.settlementIdentity?.bankCode ?? '']} {$user.settlementIdentity?.bankAccountNumber}</span>
-      <span>({$user.settlementIdentity?.bankAccountHolderName})</span>
-    </div>
+    <Switch
+      checked={!!$user.withdrawalConfig?.monthlyWithdrawalEnabled}
+      on:change={async () => {
+        if ($user.withdrawalConfig?.monthlyWithdrawalEnabled) {
+          await disableMonthlyWithdrawal();
+          mixpanel.track('user:disable-monthly-withdrawal');
+        } else {
+          await enableMonthlyWithdrawal();
+          mixpanel.track('user:enable-monthly-withdrawal');
+        }
+      }}
+    />
   </div>
 
-  <div class={css({ padding: '20px', paddingBottom: '60px', backgroundColor: 'gray.50' })}>
+  <div
+    class={flex({
+      align: 'center',
+      gap: '2px',
+      marginTop: '12px',
+      marginBottom: '20px',
+      paddingX: '10px',
+      paddingY: '8px',
+      borderRadius: '6px',
+      fontSize: '13px',
+      color: 'gray.500',
+      backgroundColor: 'gray.50',
+    })}
+  >
+    <span>{banks[$user.settlementIdentity?.bankCode ?? '']} {$user.settlementIdentity?.bankAccountNumber}</span>
+    <span>({$user.settlementIdentity?.bankAccountHolderName})</span>
+  </div>
+
+  <div class={css({ marginX: '-20px', padding: '20px', paddingBottom: '60px', backgroundColor: 'gray.50' })}>
     <p class={css({ marginBottom: '8px', fontSize: '14px', fontWeight: 'semibold', color: 'gray.500' })}>유의사항</p>
 
     <p class={css({ fontSize: '13px', color: 'gray.500' })}>

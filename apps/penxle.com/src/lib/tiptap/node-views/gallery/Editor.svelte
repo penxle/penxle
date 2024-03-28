@@ -297,7 +297,7 @@
   };
 </script>
 
-<Modal size="lg" on:close={() => (open = false)} bind:open>
+<Modal style={css.raw({ paddingBottom: '0' })} size="lg" on:close={() => (open = false)} bind:open>
   <svelte:fragment slot="title">
     이미지 편집
     <Tooltip
@@ -310,15 +310,13 @@
     </Tooltip>
   </svelte:fragment>
 
-  <div class={flex({ height: '470px' })}>
+  <div class={flex({ height: '440px' })}>
     <div class={flex({ flexDirection: 'column', width: '562px' })}>
       <div
         class={flex({
           flexDirection: 'column',
           align: 'center',
           flexGrow: '1',
-          paddingTop: '24px',
-          paddingBottom: '16px',
           overflowY: 'auto',
         })}
       >
@@ -379,7 +377,6 @@
           position: 'relative',
           borderTopWidth: '1px',
           borderColor: 'gray.200',
-          paddingX: '24px',
           height: '104px',
         })}
       >
@@ -471,9 +468,7 @@
         gap: '16px',
         borderLeftWidth: '1px',
         borderColor: 'gray.200',
-        paddingY: '20px',
         paddingLeft: '20px',
-        paddingRight: '24px',
       })}
     >
       <div>
@@ -568,15 +563,18 @@
   </div>
 
   <svelte:fragment slot="action">
-    <Button style={css.raw({ width: '95px' })} size="lg" on:click={() => (open = false)}>닫기</Button>
+    <Button style={css.raw({ width: '95px' })} size="md" on:click={() => (open = false)}>닫기</Button>
   </svelte:fragment>
 </Modal>
 
 <Modal size="lg" bind:open={imageListOpen}>
-  <svelte:fragment slot="title">
-    <button class={css({ marginRight: '4px' })} type="button" on:click={() => (imageListOpen = false)}>
+  <svelte:fragment slot="title-left">
+    <button type="button" on:click={() => (imageListOpen = false)}>
       <Icon icon={IconChevronLeft} size={24} />
     </button>
+  </svelte:fragment>
+
+  <svelte:fragment slot="title">
     전체목록
     <Tooltip
       style={center.raw({ marginLeft: '4px' })}
@@ -594,16 +592,15 @@
         align: 'center',
         justify: 'space-between',
         borderBottomWidth: '1px',
-        borderColor: 'gray.200',
-        paddingX: '24px',
-        paddingY: '12px',
+        borderColor: 'gray.150',
+        marginX: '-20px',
+        paddingX: '20px',
+        paddingBottom: '16px',
       })}
     >
       <div class={css({ display: 'flex' })}>
         <Checkbox
           style={css.raw({
-            gap: '8px',
-            fontSize: '14px',
             _after: {
               content: "''",
               display: 'block',
@@ -662,9 +659,6 @@
           gap: '8px',
           paddingTop: '24px',
           paddingBottom: '32px',
-          paddingX: '24px',
-          height: '416px',
-          overflowY: 'auto',
         },
         view === 'list' && { gap: '10px' },
       )}
@@ -717,7 +711,7 @@
                 backgroundColor: { base: 'gray.5', _hover: 'gray.100' },
                 height: '68px',
                 width: 'full',
-                _pressed: { ringWidth: '[1.5px]', ringColor: 'teal.500', backgroundColor: 'teal.50' },
+                _pressed: { borderWidth: '[1.5px]', borderColor: 'teal.500', backgroundColor: 'teal.50' },
               }),
             )}
             aria-pressed={selectedImages.includes(image.id)}
@@ -744,7 +738,7 @@
               style={css.raw({ marginRight: '16px', borderRadius: '6px', size: '48px', objectFit: 'cover' })}
               {image}
             />
-            <p class={css({ flexGrow: '1', fontSize: '14px' })}>
+            <p class={css({ flexGrow: '1', fontSize: '14px', textAlign: 'left' })}>
               {image.kind === 'data' ? image.__data.name : image.__file.name}
             </p>
 
@@ -818,7 +812,7 @@
 
     <Button
       style={css.raw({ width: '95px' })}
-      size="lg"
+      size="md"
       variant="gray-outline"
       on:click={() => (imageListOpen = false)}
     >
