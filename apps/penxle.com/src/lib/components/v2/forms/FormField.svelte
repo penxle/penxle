@@ -1,10 +1,7 @@
 <script lang="ts">
-  import IconAlertCircle from '~icons/tabler/alert-circle';
-  import { Icon } from '$lib/components';
   import { FormValidationMessage } from '$lib/components/forms';
   import { setFormField } from '$lib/form';
   import { css } from '$styled-system/css';
-  import { flex } from '$styled-system/patterns';
   import type { SystemStyleObject } from '$styled-system/types';
 
   export let style: SystemStyleObject | undefined = undefined;
@@ -29,18 +26,16 @@
   </label>
   <slot />
   <div
-    class={flex({
-      align: 'center',
-      gap: '2px',
+    class={css({
       marginTop: '6px',
-      fontSize: '12px',
+      fontSize: '13px',
       color: 'red.600',
+      lineHeight: 'none',
       minHeight: '18px',
     })}
   >
     <FormValidationMessage for={name} let:message>
-      <Icon icon={IconAlertCircle} size={12} />
-      {message}
+      * {message}
     </FormValidationMessage>
   </div>
 </section>

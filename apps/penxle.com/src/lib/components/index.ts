@@ -1,7 +1,7 @@
 export { default as Avatar } from './Avatar.svelte';
-export { default as Badge } from './Badge.svelte';
 export { default as BottomSheet } from './BottomSheet.svelte';
 export { default as Button } from './Button.svelte';
+export { default as Chip } from './Chip.svelte';
 export { default as ColorPicker } from './ColorPicker.svelte';
 export { default as GridImage } from './GridImage.svelte';
 export { default as Helmet } from './Helmet.svelte';

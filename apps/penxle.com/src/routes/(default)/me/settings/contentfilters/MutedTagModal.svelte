@@ -65,9 +65,10 @@
         style={css.raw({ height: 'fit' })}
         as="label"
         checked={tags.includes(tag)}
+        size="sm"
         on:change={(e) => handleChange(e, tag)}
       >
-        {tag.name}
+        #{tag.name}
       </Tag>
     {:else}
       <article

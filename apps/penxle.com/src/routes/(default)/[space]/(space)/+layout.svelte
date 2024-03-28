@@ -398,7 +398,7 @@
     {/if}
   </div>
 
-  <TabHead style={css.raw({ borderWidth: '0', width: 'full', maxWidth: '800px' })} variant="secondary">
+  <TabHead style={css.raw({ width: 'full', maxWidth: '800px' })}>
     <TabHeadItem id={1} pathname="/{$query.space.slug}">
       <span>홈</span>
     </TabHeadItem>

@@ -310,7 +310,7 @@
     </Tooltip>
   </svelte:fragment>
 
-  <div class={flex({ height: '490px' })}>
+  <div class={flex({ height: '470px' })}>
     <div class={flex({ flexDirection: 'column', width: '562px' })}>
       <div
         class={flex({
@@ -515,7 +515,7 @@
 
           <RadioGroup
             name="column"
-            style={css.raw({ gap: '8px', borderBottomWidth: '1px', borderColor: 'gray.100', paddingBottom: '16px' })}
+            style={css.raw({ borderBottomWidth: '1px', borderColor: 'gray.100', paddingBottom: '16px' })}
             items={[
               {
                 label: '2열',
@@ -525,8 +525,7 @@
               },
               { label: '3열', value: 3, icon: IconGrid3Columns, checked: node.attrs.gridColumns === 3 },
             ]}
-            size="sm"
-            variant="list"
+            variant="icon-list"
             on:change={(v) => updateAttributes({ gridColumns: v.detail })}
           />
         </div>
@@ -538,7 +537,7 @@
 
           <RadioGroup
             name="view"
-            style={css.raw({ gap: '8px', borderBottomWidth: '1px', borderColor: 'gray.100', paddingBottom: '16px' })}
+            style={css.raw({ borderBottomWidth: '1px', borderColor: 'gray.100', paddingBottom: '16px' })}
             items={[
               {
                 label: '한 쪽 보기',
@@ -548,8 +547,7 @@
               },
               { label: '두 쪽 보기', value: 2, icon: IconBookBothPage, checked: node.attrs.slidesPerPage === 2 },
             ]}
-            size="sm"
-            variant="list"
+            variant="icon-list"
             on:change={(v) => updateAttributes({ slidesPerPage: v.detail })}
           />
         </div>
@@ -665,7 +663,7 @@
           paddingTop: '24px',
           paddingBottom: '32px',
           paddingX: '24px',
-          height: '460px',
+          height: '416px',
           overflowY: 'auto',
         },
         view === 'list' && { gap: '10px' },

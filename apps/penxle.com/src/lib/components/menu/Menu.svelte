@@ -30,7 +30,7 @@
 
   const { anchor, floating } = createFloatingActions({
     placement,
-    offset: offset ?? 4,
+    offset: offset ?? 6,
   });
 
   afterNavigate(() => {
@@ -69,17 +69,15 @@
     class={css(
       {
         display: 'flex',
-        gap: '4px',
         borderWidth: '1px',
-        borderColor: 'gray.200',
-        borderRadius: '8px',
-        paddingX: '10px',
-        boxShadow: '[0 5px 22px 0 {colors.gray.900/6}]',
+        borderColor: 'gray.100',
         backgroundColor: 'gray.5',
+        minWidth: '148px',
         zIndex: '50',
+        _last: { borderBottomStyle: 'none' },
       },
-      alignment === 'horizontal' && { flexDirection: 'row', paddingY: '4px' },
-      alignment === 'vertical' && { flexDirection: 'column', paddingY: '10px' },
+      alignment === 'horizontal' && { flexDirection: 'row', paddingY: '14px' },
+      alignment === 'vertical' && { flexDirection: 'column' },
       !padding && { padding: '0' },
       !rounded && { borderTopRadius: '0' },
       menuStyle,

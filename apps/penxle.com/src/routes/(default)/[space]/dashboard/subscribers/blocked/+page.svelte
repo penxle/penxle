@@ -50,7 +50,7 @@
 <h1 class={css({ marginBottom: '24px', fontSize: '20px', fontWeight: 'bold', hideBelow: 'sm' })}>독자 관리</h1>
 
 <div class={css({ smDown: { backgroundColor: 'gray.5' } })}>
-  <TabHead style={css.raw({ borderStyle: 'none', marginBottom: '24px' })} variant="secondary">
+  <TabHead style={css.raw({ fontSize: '18px', paddingLeft: '0' })}>
     <TabHeadItem id={0} pathname="/{$page.params.space}/dashboard/subscribers/blocked">차단 계정</TabHeadItem>
   </TabHead>
 </div>

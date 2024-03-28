@@ -170,10 +170,9 @@
       backgroundColor: 'gray.5',
     })}
   >
-    <TabHead style={css.raw({ width: 'full' })} variant="secondary">
+    <TabHead style={css.raw({ fontSize: '18px', width: 'full' })}>
       <TabHeadItem id={1} pathname={`/tag/${$page.params.name}`}>위키</TabHeadItem>
       <TabHeadItem id={2} pathname={`/tag/${$page.params.name}/post`}>포스트</TabHeadItem>
-      <!-- <TabHeadItem id={3}>스페이스</TabHeadItem> -->
     </TabHead>
 
     <slot />

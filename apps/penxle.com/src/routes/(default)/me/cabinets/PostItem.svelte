@@ -1,6 +1,6 @@
 <script lang="ts">
   import { fragment, graphql } from '$glitch';
-  import { Badge, Image, Tag } from '$lib/components';
+  import { Chip, Image, Tag } from '$lib/components';
   import { css } from '$styled-system/css';
   import { flex } from '$styled-system/patterns';
   import type { PostItem_post } from '$glitch';
@@ -74,10 +74,10 @@
   <a href={`/${$post.space.slug}/${$post.permalink}`}>
     <div class={flex({ wrap: 'wrap', gap: '4px' })}>
       {#if $post.publishedRevision?.price}
-        <Badge style={css.raw({ marginBottom: '8px', width: 'fit' })} color="purple">유료</Badge>
+        <Chip style={css.raw({ marginBottom: '8px', width: 'fit' })} color="pink">유료</Chip>
       {/if}
       {#if $post.blurred}
-        <Badge style={css.raw({ marginBottom: '8px', width: 'fit' })} color="orange">트리거 주의</Badge>
+        <Chip style={css.raw({ marginBottom: '8px', width: 'fit' })} color="violet">트리거</Chip>
       {/if}
     </div>
 

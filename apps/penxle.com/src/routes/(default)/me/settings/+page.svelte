@@ -7,7 +7,7 @@
   import { page } from '$app/stores';
   import { graphql } from '$glitch';
   import { mixpanel } from '$lib/analytics';
-  import { Avatar, Badge, Button, Helmet, Icon } from '$lib/components';
+  import { Avatar, Button, Chip, Helmet, Icon } from '$lib/components';
   import { Switch } from '$lib/components/forms';
   import { toast } from '$lib/notification';
   import { css } from '$styled-system/css';
@@ -130,7 +130,7 @@
     <div>
       <div class={flex({ align: 'center', flexWrap: 'wrap', marginBottom: '8px' })}>
         <h3 class={css({ marginRight: '8px', fontSize: '18px', fontWeight: 'bold' })}>이메일 인증</h3>
-        <Badge style={css.raw({ fontSize: '12px', fontWeight: 'bold' })} color="green">인증 완료</Badge>
+        <Chip style={css.raw({ fontSize: '12px', fontWeight: 'bold' })} color="grass">인증 완료</Chip>
       </div>
     </div>
 
@@ -143,9 +143,9 @@
         <h3 class={css({ marginRight: '8px', fontSize: '18px', fontWeight: 'bold' })}>본인 인증</h3>
 
         {#if $query.me.personalIdentity}
-          <Badge style={css.raw({ fontSize: '12px', fontWeight: 'bold' })} color="green">인증 완료</Badge>
+          <Chip style={css.raw({ fontSize: '12px', fontWeight: 'bold' })} color="grass">인증 완료</Chip>
         {:else}
-          <Badge style={css.raw({ fontSize: '12px', fontWeight: 'bold' })} color="red">인증 필요</Badge>
+          <Chip style={css.raw({ fontSize: '12px', fontWeight: 'bold' })} color="red">인증 필요</Chip>
         {/if}
       </div>
       <p class={css({ fontSize: '15px', color: 'gray.500', wordBreak: 'keep-all' })}>

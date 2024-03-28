@@ -57,16 +57,13 @@
 
   <ul class={flex({ wrap: 'wrap', gap: '10px', minHeight: '160px', maxHeight: '240px', overflowY: 'auto' })}>
     {#each $user.followedTags as tag (tag.id)}
-      <Tag
-        style={css.raw({ height: 'fit' })}
-        as="label"
-        checked={tags.includes(tag)}
-        on:change={(e) => handleChange(e, tag)}
-      >
-        {tag.name}
-      </Tag>
+      <li>
+        <Tag as="label" checked={tags.includes(tag)} size="sm" on:change={(e) => handleChange(e, tag)}>
+          #{tag.name}
+        </Tag>
+      </li>
     {:else}
-      <article
+      <li
         class={css({
           marginX: 'auto',
           color: 'gray.500',
@@ -76,7 +73,7 @@
         })}
       >
         아직 추가된 관심 태그가 없어요
-      </article>
+      </li>
     {/each}
   </ul>
 

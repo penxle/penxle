@@ -16,19 +16,39 @@
 
   const recipe = cva({
     base: {
-      borderWidth: '1px',
-      borderColor: 'gray.100',
-      borderRadius: 'full',
-      paddingY: '4px',
-      lineHeight: 'none',
+      display: 'flex',
+      alignItems: 'center',
       backgroundColor: 'gray.100',
+      height: 'fit',
       transition: 'common',
       truncate: true,
+      cursor: 'pointer',
     },
     variants: {
       size: {
-        sm: { paddingX: '8px', fontSize: '13px', fontWeight: 'medium' },
-        lg: { paddingX: '16px', fontWeight: 'semibold' },
+        sm: {
+          'paddingX': '6px',
+          'paddingY': '2px',
+          'fontSize': '11px',
+          'color': 'gray.500',
+          'backgroundColor': { base: 'gray.50', _hover: 'gray.150' },
+          '&:has(:checked)': {
+            borderWidth: '1px',
+            borderColor: 'gray.300',
+          },
+        },
+        lg: {
+          'paddingX': '14px',
+          'paddingY': '6px',
+          'fontSize': '13px',
+          'fontWeight': 'medium',
+          'color': 'gray.5',
+          'backgroundColor': { base: 'gray.900', _hover: 'gray.400' },
+          '&:has(:checked)': {
+            borderWidth: '1px',
+            borderColor: 'gray.400',
+          },
+        },
       },
     },
   });
@@ -39,8 +59,11 @@
   id={name}
   class={css(
     recipe.raw({ size }),
-    checked && { borderColor: 'gray.900' },
-    as !== 'div' && { _hover: { borderColor: 'gray.200', backgroundColor: 'gray.200' } },
+    'right-icon' in $$slots && {
+      gap: '4px',
+      paddingLeft: size === 'sm' ? '6px' : '10px',
+      paddingRight: size === 'sm' ? '4px' : '8px',
+    },
     style,
   )}
   {...$$restProps}
@@ -48,5 +71,10 @@
   {#if as === 'label'}
     <input class={css({ appearance: 'none' })} aria-checked={checked} type="checkbox" on:change bind:checked />
   {/if}
+
   <slot />
+
+  {#if 'right-icon' in $$slots}
+    <slot name="right-icon" />
+  {/if}
 </svelte:element>

@@ -3,7 +3,7 @@
   import qs from 'query-string';
   import IconDots from '~icons/tabler/dots';
   import { fragment, graphql } from '$glitch';
-  import { Badge, Icon, Modal } from '$lib/components';
+  import { Chip, Icon, Modal } from '$lib/components';
   import { Menu, MenuItem } from '$lib/components/menu';
   import { css } from '$styled-system/css';
   import { flex } from '$styled-system/patterns';
@@ -107,7 +107,7 @@
                 <dt class={flex({ gap: '4px', fontWeight: 'bold' })}>
                   <time datetime={revision.createdAt.slice(0, 11)}>{dayjs(revision.createdAt).formatAsDate()}</time>
                   {#if revision.kind === 'PUBLISHED' || revision.kind === 'ARCHIVED'}
-                    <Badge color="green">발행</Badge>
+                    <Chip color="grass">발행</Chip>
                   {/if}
                 </dt>
                 <dd class={css({ fontSize: '13px', fontWeight: 'medium', color: 'gray.500', textAlign: 'left' })}>

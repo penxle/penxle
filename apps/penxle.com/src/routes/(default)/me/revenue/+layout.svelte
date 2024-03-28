@@ -277,7 +277,7 @@
     },
   })}
 >
-  <TabHead style={css.raw({ marginX: '20px' })} variant="secondary">
+  <TabHead>
     <TabHeadItem id={1} style={css.raw({ fontSize: '16px' })} pathname="/me/revenue">내 수익</TabHeadItem>
     <TabHeadItem id={2} style={css.raw({ fontSize: '16px' })} pathname="/me/revenue/settlement">출금 내역</TabHeadItem>
   </TabHead>

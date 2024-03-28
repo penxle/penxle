@@ -58,6 +58,6 @@ export const globalCss = defineGlobalStyles({
   },
 
   '::placeholder': {
-    color: 'gray.400',
+    color: 'gray.600',
   },
 });

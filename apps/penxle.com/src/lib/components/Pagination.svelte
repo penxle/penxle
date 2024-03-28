@@ -1,6 +1,8 @@
 <script lang="ts">
   import IconChevronLeft from '~icons/tabler/chevron-left';
+  import IconChevronLeftPipe from '~icons/tabler/chevron-left-pipe';
   import IconChevronRight from '~icons/tabler/chevron-right';
+  import IconChevronRightPipe from '~icons/tabler/chevron-right-pipe';
   import { Icon } from '$lib/components';
   import { css } from '$styled-system/css';
   import { center } from '$styled-system/patterns';
@@ -9,7 +11,7 @@
   export let initialPage: number;
   export let totalItems: number;
   export let itemsPerPage = 10;
-  export let displayPage = 10;
+  export let displayPage = 6;
   export let onChange: (page: number) => void;
   export let style: SystemStyleObject | undefined = undefined;
 
@@ -44,7 +46,27 @@
   role="group"
 >
   <button
-    class={center({ size: '28px', _disabled: { color: 'gray.400', cursor: 'not-allowed' } })}
+    class={center({
+      color: { base: 'gray.600', _disabled: 'gray.300' },
+      size: '32px',
+      backgroundColor: { base: 'gray.5', _enabled: { _hover: 'gray.100', _pressed: 'gray.200' } },
+      _disabled: { cursor: 'not-allowed' },
+    })}
+    disabled={currentPage === 1}
+    type="button"
+    on:click={() => {
+      currentPage = 1;
+    }}
+  >
+    <Icon icon={IconChevronLeftPipe} size={12} />
+  </button>
+  <button
+    class={center({
+      color: { base: 'gray.600', _disabled: 'gray.300' },
+      size: '32px',
+      backgroundColor: { base: 'gray.5', _enabled: { _hover: 'gray.100', _pressed: 'gray.200' } },
+      _disabled: { cursor: 'not-allowed' },
+    })}
     disabled={currentPage <= displayPage}
     type="button"
     on:click={() => {
@@ -52,23 +74,17 @@
       currentPage = previousPageGroup * displayPage;
     }}
   >
-    <Icon icon={IconChevronLeft} />
+    <Icon icon={IconChevronLeft} size={12} />
   </button>
   {#each range as index (index)}
     <button
       class={center({
-        borderWidth: '1px',
-        borderColor: 'gray.900/10',
-        borderRadius: '8px',
         padding: '8px',
         size: '32px',
-        fontSize: '13px',
-        fontWeight: 'bold',
-        backgroundColor: 'gray.5',
+        color: { base: 'gray.600', _focusVisible: 'gray.600', _pressed: 'gray.5' },
+        fontSize: '14px',
+        backgroundColor: { base: 'gray.5', _hover: 'gray.100', _focusVisible: 'gray.200', _pressed: 'gray.900' },
         transition: 'common',
-        _hover: { color: 'gray.5', backgroundColor: 'gray.900' },
-        _focusVisible: { color: 'gray.5', backgroundColor: 'gray.900' },
-        _pressed: { color: 'gray.5', backgroundColor: 'gray.900' },
       })}
       aria-pressed={currentPage === index}
       type="button"
@@ -80,7 +96,12 @@
     </button>
   {/each}
   <button
-    class={center({ size: '28px', _disabled: { color: 'gray.400', cursor: 'not-allowed' } })}
+    class={center({
+      color: { base: 'gray.600', _disabled: 'gray.300' },
+      size: '32px',
+      backgroundColor: { base: 'gray.5', _enabled: { _hover: 'gray.100', _pressed: 'gray.200' } },
+      _disabled: { cursor: 'not-allowed' },
+    })}
     disabled={currentPageGroup === totalPageGroup}
     type="button"
     on:click={() => {
@@ -88,6 +109,21 @@
       currentPage = nextPageGroup * displayPage - (displayPage - 1);
     }}
   >
-    <Icon icon={IconChevronRight} />
+    <Icon icon={IconChevronRight} size={12} />
+  </button>
+  <button
+    class={center({
+      color: { base: 'gray.600', _disabled: 'gray.300' },
+      size: '32px',
+      backgroundColor: { base: 'gray.5', _enabled: { _hover: 'gray.100', _pressed: 'gray.200' } },
+      _disabled: { cursor: 'not-allowed' },
+    })}
+    disabled={currentPage === maxPage}
+    type="button"
+    on:click={() => {
+      currentPage = maxPage;
+    }}
+  >
+    <Icon icon={IconChevronRightPipe} size={12} />
   </button>
 </div>
