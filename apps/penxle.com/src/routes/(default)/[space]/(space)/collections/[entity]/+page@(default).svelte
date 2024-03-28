@@ -8,7 +8,6 @@
   import { graphql } from '$glitch';
   import { Button, Helmet, Icon, Image, SpacePostCard } from '$lib/components';
   import { ManageCollectionModal } from '$lib/components/pages/collections';
-  import { toast } from '$lib/notification';
   import { css } from '$styled-system/css';
   import { center, flex } from '$styled-system/patterns';
   import LoginRequireModal from '../../../../LoginRequireModal.svelte';
@@ -310,7 +309,6 @@
                 on:click={async () => {
                   await unfollowSpace({ spaceId: $query.space.id });
                   mixpanel.track('space:unfollow', { spaceId: $query.space.id, via: 'collection' });
-                  toast.success('관심 스페이스 해제되었어요');
                 }}
               >
                 관심 해제
@@ -327,7 +325,6 @@
 
                   await followSpace({ spaceId: $query.space.id });
                   mixpanel.track('space:follow', { spaceId: $query.space.id, via: 'collection' });
-                  toast.success('관심 스페이스로 등록되었어요');
                 }}
               >
                 + 관심

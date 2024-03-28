@@ -6,7 +6,6 @@
   import { Button, Icon } from '$lib/components';
   import { Menu, MenuItem } from '$lib/components/menu';
   import { TabHead, TabHeadItem } from '$lib/components/tab';
-  import { toast } from '$lib/notification';
   import { css } from '$styled-system/css';
   import { center, flex } from '$styled-system/patterns';
   import LoginRequireModal from '../../LoginRequireModal.svelte';
@@ -98,7 +97,6 @@
             on:click={async () => {
               await unfollowTag({ tagId: $query.tag.id });
               mixpanel.track('tag:unfollow', { tagId: $query.tag.id, via: 'tag' });
-              toast.success('관심 태그 해제되었어요');
             }}
           >
             관심 해제
@@ -114,7 +112,6 @@
 
               await followTag({ tagId: $query.tag.id });
               mixpanel.track('tag:follow', { tagId: $query.tag.id, via: 'tag' });
-              toast.success('관심 태그에 추가했어요');
             }}
           >
             + 관심
@@ -131,7 +128,6 @@
               on:click={async () => {
                 await unmuteTag({ tagId: $query.tag.id });
                 mixpanel.track('tag:unmute', { tagId: $query.tag.id, via: 'tag' });
-                toast.success('태그 숨기기 해제되었어요');
               }}
             >
               태그 안보기 해제
@@ -146,7 +142,6 @@
 
                 await muteTag({ tagId: $query.tag.id });
                 mixpanel.track('tag:mute', { tagId: $query.tag.id, via: 'tag' });
-                toast.success('태그를 숨겼어요');
               }}
             >
               태그 안보기

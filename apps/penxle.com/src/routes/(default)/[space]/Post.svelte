@@ -972,7 +972,7 @@
               });
               mixpanel.track('post:unlock', { postId: $query.post.id });
             } catch (err) {
-              if (err instanceof FormValidationError) toast.error(err.message);
+              if (err instanceof FormValidationError) toast(err.message);
             }
           }}
         >
@@ -1668,7 +1668,6 @@
         await goto(`/${$query.post.space?.slug}`);
         await deletePost({ postId: $query.post.id });
         mixpanel.track('post:delete', { postId: $query.post.id, via: 'post' });
-        toast.success('포스트를 삭제했어요');
       }}
     >
       삭제

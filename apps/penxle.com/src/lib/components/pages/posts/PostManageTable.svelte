@@ -13,7 +13,6 @@
   import { Checkbox, Editable, Switch } from '$lib/components/forms';
   import { Menu, MenuItem } from '$lib/components/menu';
   import { Table, TableData, TableHead, TableHeader, TableRow } from '$lib/components/table';
-  import { toast } from '$lib/notification';
   import { css } from '$styled-system/css';
   import { flex } from '$styled-system/patterns';
   import type { ChangeEventHandler } from 'svelte/elements';
@@ -574,8 +573,6 @@
                   collectionId: collection.id,
                   postIds: selectedPosts.map((post) => post.id),
                 });
-
-                toast.success('컬렉션에 추가했어요');
               }}
             >
               {collection.name}
@@ -644,8 +641,6 @@
 
         deletePostId = null;
         deletePostIds = null;
-
-        toast.success('포스트를 삭제했어요');
       }}
     >
       삭제
@@ -676,7 +671,6 @@
           postIds,
         });
 
-        toast.success('새 컬렉션을 생성했어요');
         openCreateCollection = false;
         createingCollection = false;
       }}

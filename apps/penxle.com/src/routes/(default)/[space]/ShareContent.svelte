@@ -99,7 +99,7 @@
         size: fontSizeToInputFormat[fontSize],
       });
     } catch (err) {
-      toast.error('이미지 생성에 실패했습니다. 잠시 후 다시 시도해주세요.');
+      toast('이미지 생성에 실패했습니다. 잠시 후 다시 시도해주세요.');
 
       // 더미 값 할당으로 무한 루프를 방지함
       generatedPostShareImage = '';
@@ -115,7 +115,6 @@
     link.download = `${title} | ${spaceName}.png`;
     link.href = generatedPostShareImage;
     link.click();
-    toast.success('이미지가 다운로드되었어요');
   };
 
   const share = () => {

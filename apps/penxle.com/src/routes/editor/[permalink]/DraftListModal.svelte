@@ -7,7 +7,6 @@
   import { fragment, graphql } from '$glitch';
   import { mixpanel } from '$lib/analytics';
   import { Button, Chip, Icon, Modal } from '$lib/components';
-  import { toast } from '$lib/notification';
   import { css, cx } from '$styled-system/css';
   import { flex } from '$styled-system/patterns';
   import type { EditorPage_DraftListModal_post, EditorPage_DraftListModal_user } from '$glitch';
@@ -142,7 +141,6 @@
         if (deletePostId) {
           await deletePost({ postId: deletePostId });
           mixpanel.track('post:delete', { postId: deletePostId, via: 'editor' });
-          toast.success('임시저장 포스트를 삭제했어요');
           deletePostOpen = false;
 
           if (deletePostId === $post.id) {

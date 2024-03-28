@@ -7,7 +7,6 @@
   import { fragment, graphql } from '$glitch';
   import { mixpanel } from '$lib/analytics';
   import { Avatar, Chip, Icon, Image, Tag } from '$lib/components';
-  import { toast } from '$lib/notification';
   import { css } from '$styled-system/css';
   import { center, flex } from '$styled-system/patterns';
   import type { Feed_post } from '$glitch';
@@ -108,11 +107,9 @@
     if ($post.bookmarkGroups.length > 0) {
       await unbookmarkPost({ bookmarkId: $post.bookmarkGroups[0].id, postId: $post.id });
       mixpanel.track('post:unbookmark', { postId: $post.id, via: 'feed' });
-      toast.success('북마크에서 삭제했어요');
     } else {
       await bookmarkPost({ postId: $post.id });
       mixpanel.track('post:bookmark', { postId: $post.id, via: 'feed' });
-      toast.success('북마크에 저장되었어요');
     }
   };
 

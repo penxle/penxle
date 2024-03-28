@@ -9,7 +9,6 @@
   import Image from '$lib/components/Image.svelte';
   import { ThumbnailPicker } from '$lib/components/media';
   import { createMutationForm } from '$lib/form';
-  import { toast } from '$lib/notification';
   import { CreateSpaceSchema } from '$lib/validations';
   import { css } from '$styled-system/css';
   import { flex } from '$styled-system/patterns';
@@ -65,7 +64,6 @@
       dispatch('create', { id });
 
       mixpanel.track('space:create', { useSpaceProfile, via });
-      toast.success('스페이스를 만들었어요');
       open = false;
 
       if (via === 'user-menu') {

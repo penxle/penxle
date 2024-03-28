@@ -3,7 +3,6 @@
   import { mixpanel } from '$lib/analytics';
   import { Button, Image, Modal } from '$lib/components';
   import { PopupSearch } from '$lib/components/forms';
-  import { toast } from '$lib/notification';
   import { css } from '$styled-system/css';
   import { flex } from '$styled-system/patterns';
   import type { MeSettingsContentFiltersPage_MutedSpaceModal_user } from '$glitch';
@@ -115,7 +114,6 @@
             on:click={async () => {
               await unmuteSpace({ spaceId: space.id });
               mixpanel.track('space:unmute', { spaceId: space.id, via: 'content-filters' });
-              toast.success('스페이스 숨기기를 해제했어요');
             }}
           >
             해제
@@ -128,7 +126,6 @@
             on:click={async () => {
               await muteSpace({ spaceId: space.id });
               mixpanel.track('space:mute', { spaceId: space.id, via: 'content-filters' });
-              toast.success('스페이스를 숨겼어요');
             }}
           >
             등록

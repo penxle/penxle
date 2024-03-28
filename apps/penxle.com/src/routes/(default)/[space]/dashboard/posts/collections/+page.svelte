@@ -9,7 +9,6 @@
     UpdateCollectionModal,
   } from '$lib/components/pages/collections';
   import { Table, TableData, TableHead, TableHeader, TableRow } from '$lib/components/table';
-  import { toast } from '$lib/notification';
   import { css } from '$styled-system/css';
   import { flex } from '$styled-system/patterns';
 
@@ -159,8 +158,6 @@
                 deleting = true;
                 await deleteSpaceCollection({ collectionId: collection.id });
                 deleting = false;
-
-                toast.success('컬렉션을 삭제했어요');
               }}
             >
               <Icon style={css.raw({ color: 'gray.500', _hover: { color: 'red.600' } })} icon={IconTrash} />

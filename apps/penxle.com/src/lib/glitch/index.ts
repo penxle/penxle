@@ -1,6 +1,5 @@
 import { createClient } from '@penxle/glitch';
-import { AppError, UnknownError } from '$lib/errors';
-import { toast } from '$lib/notification';
+import { AppError } from '$lib/errors';
 import { keys } from './keys';
 import { optimistic } from './optimistic';
 import { updates } from './updates';
@@ -11,14 +10,6 @@ export default createClient({
   cache: { keys, optimistic, updates },
   transformError: AppError.deserialize,
   onMutationError: (error) => {
-    if (!error.extra.internal) {
-      if (error instanceof UnknownError && error.id) {
-        toast.error(error.id, {
-          title: error.message,
-        });
-      } else {
-        toast.error(error.message);
-      }
-    }
+    console.log(error);
   },
 });

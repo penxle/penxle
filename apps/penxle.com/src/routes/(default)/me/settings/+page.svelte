@@ -82,7 +82,7 @@
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       async (resp: any) => {
         if (resp.error_msg) {
-          toast.error(resp.error_msg);
+          toast(resp.error_msg);
           return;
         }
 
@@ -97,7 +97,7 @@
   onMount(() => {
     switch ($page.url.searchParams.get('message')) {
       case 'sso_already_linked_by_other':
-        toast.error('이 소셜 계정은 이미 다른 펜슬 계정에 연동되어 있어요.');
+        toast('이 소셜 계정은 이미 다른 펜슬 계정에 연동되어 있어요.');
         break;
     }
   });
@@ -191,9 +191,11 @@
         const consent = !$query.me.marketingConsent;
         await updateUserMarketingConsent({ consent });
         mixpanel.track('user:marketing_consent:update', { consent });
-        toast.success(`${dayjs().formatAsDate()} ${consent ? '승인' : '거부'} 처리되었어요`, {
-          title: '펜슬 마케팅 수신 동의',
-        });
+
+        // TODO: Alert
+        // toast.success(`${dayjs().formatAsDate()} ${consent ? '승인' : '거부'} 처리되었어요`, {
+        //   title: '펜슬 마케팅 수신 동의',
+        // });
       }}
     />
   </div>
