@@ -1,22 +1,23 @@
+import { eq } from 'drizzle-orm';
 import { status } from 'itty-router';
 import { match } from 'ts-pattern';
+import { database, PostComments, Posts, Spaces, UserNotifications } from '$lib/server/database';
 import { createRouter } from '../router';
 import type { IRequest } from 'itty-router';
 import type { Notification } from '$lib/utils';
 
 export const notification = createRouter();
 
-notification.get('/notification/:notificationId', async (request, { db }) => {
+notification.get('/notification/:notificationId', async (request) => {
   const notificationId = (request as IRequest).params.notificationId;
   if (!notificationId) {
     throw new Error('notificationId is required');
   }
 
-  const notification = (await db.userNotification.findUnique({
-    where: { id: notificationId },
-  })) as unknown as Notification;
+  const notifications = await database.select().from(UserNotifications).where(eq(UserNotifications.id, notificationId));
+  const notification = notifications[0] as Notification;
 
-  if (!notification) {
+  if (notifications.length === 0) {
     return status(307, { headers: { Location: `/404` } });
   }
 
@@ -24,35 +25,39 @@ notification.get('/notification/:notificationId', async (request, { db }) => {
     headers: {
       Location: await match(notification)
         .with({ category: 'PURCHASE' }, async ({ data }) => {
-          const post = await db.post.findUniqueOrThrow({
-            include: { space: true },
-            where: { id: data.postId },
-          });
+          const posts = await database
+            .select({ permalink: Posts.permalink, space: { slug: Spaces.slug } })
+            .from(Posts)
+            .innerJoin(Spaces, eq(Spaces.id, Posts.spaceId))
+            .where(eq(Posts.id, data.postId));
 
-          if (!post.space) {
+          if (posts.length === 0) {
             return `/404`;
           }
 
-          return `/${post.space.slug}/${post.permalink}`;
+          return `/${posts[0].space.slug}/${posts[0].permalink}`;
         })
         .with({ category: 'SUBSCRIBE' }, async ({ data }) => {
-          const space = await db.space.findUniqueOrThrow({
-            where: { id: data.spaceId },
-          });
-
-          return `/${space.slug}`;
-        })
-        .with({ category: 'COMMENT' }, async ({ data }) => {
-          const comment = await db.postComment.findUniqueOrThrow({
-            include: { post: { include: { space: true } } },
-            where: { id: data.commentId },
-          });
-
-          if (!comment.post.space) {
+          const spaces = await database.select({ slug: Spaces.slug }).from(Spaces).where(eq(Spaces.id, data.spaceId));
+          if (spaces.length === 0) {
             return `/404`;
           }
 
-          return `/${comment.post.space.slug}/${comment.post.permalink}`;
+          return `/${spaces[0].slug}`;
+        })
+        .with({ category: 'COMMENT' }, async ({ data }) => {
+          const comments = await database
+            .select({ post: { permalink: Posts.permalink }, space: { slug: Spaces.slug } })
+            .from(PostComments)
+            .innerJoin(Posts, eq(Posts.id, PostComments.postId))
+            .innerJoin(Spaces, eq(Spaces.id, Posts.spaceId))
+            .where(eq(PostComments.id, data.commentId));
+
+          if (comments.length === 0) {
+            return `/404`;
+          }
+
+          return `/${comments[0].space.slug}/${comments[0].post.permalink}`;
         })
         .exhaustive(),
     },

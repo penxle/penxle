@@ -35,10 +35,10 @@
         postCount
         visibility
 
-        externalLinks {
-          id
-          url
-        }
+        # externalLinks {
+        #   id
+        #   url
+        # }
 
         icon {
           id

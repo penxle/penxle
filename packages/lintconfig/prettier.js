@@ -9,11 +9,5 @@ export default {
   xmlWhitespaceSensitivity: 'ignore',
   xmlQuoteAttributes: 'double',
 
-  plugins: [
-    'prettier-plugin-packagejson',
-    'prettier-plugin-prisma',
-    'prettier-plugin-sh',
-    'prettier-plugin-svelte',
-    '@prettier/plugin-xml',
-  ],
+  plugins: ['prettier-plugin-packagejson', 'prettier-plugin-sh', 'prettier-plugin-svelte', '@prettier/plugin-xml'],
 };

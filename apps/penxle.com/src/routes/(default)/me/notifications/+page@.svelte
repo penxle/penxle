@@ -183,15 +183,15 @@
           </div>
           <div class={css({ paddingX: '12px', fontSize: '14px', fontWeight: 'medium', textAlign: 'left' })}>
             {#if notification.__typename === 'SubscribeNotification'}
-              {notification.actor.name}님이 {notification.space.name.length > 10
+              {notification.actor?.name}님이 {notification.space.name.length > 10
                 ? `${notification.space.name.slice(0, 10)}...`
                 : notification.space.name} 스페이스를 구독했어요
             {:else if notification.category === 'TREND'}
               포스트 조회수가 급상승하고 있어요
             {:else if notification.__typename === 'PurchaseNotification'}
-              {notification.actor.name}님이 {notification.post.publishedRevision?.title ?? '(제목 없음)'} 포스트를 구매했어요
+              {notification.actor?.name}님이 {notification.post.publishedRevision?.title ?? '(제목 없음)'} 포스트를 구매했어요
             {:else if notification.__typename === 'CommentNotification'}
-              {notification.actor.name}님이 {notification.post.publishedRevision?.title ?? '(제목 없음)'}에 댓글을
+              {notification.actor?.name}님이 {notification.post.publishedRevision?.title ?? '(제목 없음)'}에 댓글을
               달았어요
             {/if}
           </div>

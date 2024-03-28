@@ -1,39 +1,39 @@
+import { and, asc, eq, isNull } from 'drizzle-orm';
 import { create } from 'xmlbuilder2';
 import { useCache } from '$lib/server/cache';
-import { prismaClient } from '$lib/server/database';
+import { database, Posts, Spaces } from '$lib/server/database';
 import type { RequestHandler } from './$types';
 
 const predefined = ['/'];
 
 export const GET: RequestHandler = async (event) => {
   const paths = await useCache('sitemap.xml', async () => {
-    const spaces = await prismaClient.space.findMany({
-      select: { slug: true },
-      where: {
-        state: 'ACTIVE',
-        visibility: 'PUBLIC',
-      },
-      orderBy: { id: 'asc' },
-    });
+    const spaces = await database
+      .select({ slug: Spaces.slug })
+      .from(Spaces)
+      .where(and(eq(Spaces.state, 'ACTIVE'), eq(Spaces.visibility, 'PUBLIC')))
+      .orderBy(asc(Spaces.id));
 
-    const posts = await prismaClient.post.findMany({
-      select: { permalink: true, space: { select: { slug: true } } },
-      where: {
-        state: 'PUBLISHED',
-        visibility: 'PUBLIC',
-        password: null,
-        externalSearchable: true,
-        space: { state: 'ACTIVE', visibility: 'PUBLIC' },
-      },
-      orderBy: { id: 'asc' },
-    });
+    const posts = await database
+      .select({ permalink: Posts.permalink, space: { slug: Spaces.slug } })
+      .from(Posts)
+      .innerJoin(Spaces, eq(Posts.spaceId, Spaces.id))
+      .where(
+        and(
+          eq(Posts.state, 'PUBLISHED'),
+          eq(Posts.visibility, 'PUBLIC'),
+          isNull(Posts.password),
+          eq(Posts.externalSearchable, true),
+          eq(Spaces.state, 'ACTIVE'),
+          eq(Spaces.visibility, 'PUBLIC'),
+        ),
+      )
+      .orderBy(asc(Posts.id));
 
     return [
       ...predefined,
       ...spaces.map(({ slug }) => `/${slug}`),
-      // Where의 posts.space 조건에 의해 space가 null일 수 없음
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-      ...posts.map(({ permalink, space }) => `/${space!.slug}/${permalink}`),
+      ...posts.map(({ permalink, space }) => `/${space.slug}/${permalink}`),
     ];
   });
 

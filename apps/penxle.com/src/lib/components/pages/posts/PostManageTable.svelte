@@ -571,7 +571,7 @@
               aria-pressed={selectedCollectionId === collection.id}
               on:click={async () => {
                 await setSpaceCollectionPosts({
-                  collectionId: collection.id,
+                  spaceCollectionId: collection.id,
                   postIds: selectedPosts.map((post) => post.id),
                 });
 
@@ -668,7 +668,7 @@
         createingCollection = true;
         const { id: collectionId } = await createSpaceCollection({ name, spaceId: selectedPosts[0].space.id });
         const postIds = selectedPosts.map((post) => post.id);
-        await setSpaceCollectionPosts({ collectionId, postIds });
+        await setSpaceCollectionPosts({ spaceCollectionId: collectionId, postIds });
 
         mixpanel.track('space:collection:create', {
           spaceId: selectedPosts[0].id,

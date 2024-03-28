@@ -75,7 +75,7 @@
             id
           }
 
-          bookmarks {
+          bookmarkGroups {
             id
           }
         }
@@ -264,7 +264,7 @@
               name
             }
 
-            childComments {
+            children {
               id
             }
 
@@ -600,7 +600,7 @@
           type="button"
           on:click={async () => {
             if ($query.post.bookmarkGroups.length > 0) {
-              await unbookmarkPost({ bookmarkId: $query.post.bookmarkGroups[0].id, postId: $query.post.id });
+              await unbookmarkPost({ bookmarkGroupId: $query.post.bookmarkGroups[0].id, postId: $query.post.id });
               mixpanel.track('post:unbookmark', { postId: $query.post.id, via: 'post' });
             } else {
               if (!$query.me) {
@@ -1077,7 +1077,7 @@
           type="button"
           on:click={async () => {
             if ($query.post.bookmarkGroups.length > 0) {
-              await unbookmarkPost({ bookmarkId: $query.post.bookmarkGroups[0].id, postId: $query.post.id });
+              await unbookmarkPost({ bookmarkGroupId: $query.post.bookmarkGroups[0].id, postId: $query.post.id });
               mixpanel.track('post:unbookmark', { postId: $query.post.id, via: 'post' });
             } else {
               if (!$query.me) {

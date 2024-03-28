@@ -6,7 +6,7 @@
     query EditorPermalinkPage_Query($permalink: String!) {
       ...EditorPage_Editor_query
 
-      post(permalink: $permalink) {
+      draftPost(permalink: $permalink) {
         id
         ...EditorPage_Editor_post
       }
@@ -14,6 +14,6 @@
   `);
 </script>
 
-{#key $query.post.id}
-  <Editor $post={$query.post} {$query} />
+{#key $query.draftPost.id}
+  <Editor $post={$query.draftPost} {$query} />
 {/key}

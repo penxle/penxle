@@ -11,4 +11,5 @@ export * from './number';
 export * from './persisted-store';
 export * from './revenue';
 export * from './tiptap';
+export * from './type';
 export * from './url';

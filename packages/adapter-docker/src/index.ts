@@ -19,7 +19,6 @@ export const docker = (): Adapter => {
       builder.writeServer(path.join(out, 'server'));
       builder.writeClient(path.join(out, 'client'));
       builder.writePrerendered(path.join(out, 'client'));
-      builder.copy('.prisma', path.join(out, 'server/.prisma'));
 
       await fs.appendFile(
         path.join(out, 'server/manifest.js'),

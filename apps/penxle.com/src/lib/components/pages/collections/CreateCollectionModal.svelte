@@ -48,10 +48,10 @@
       const defaultName = '_';
       const createdCollection = await createSpaceCollection({ spaceId, name: defaultName });
 
-      return { collectionId: createdCollection.id, thumbnailId: thumbnail?.id };
+      return { spaceCollectionId: createdCollection.id, thumbnailId: thumbnail?.id };
     },
     initialValues: {
-      collectionId: '',
+      spaceCollectionId: '',
     },
     onSuccess: ({ id }) => {
       open = false;

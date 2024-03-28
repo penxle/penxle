@@ -81,7 +81,7 @@
               id
             }
 
-            childComments {
+            children {
               id
             }
           }
@@ -102,10 +102,10 @@
         visibility
         createdAt
         state
-        isPurchasedUser
-        likedByMe
+        purchased
+        liked
         likeCount
-        likedByPostedUser
+        likedByPostUser
 
         profile {
           id
@@ -116,7 +116,7 @@
           id
         }
 
-        childComments {
+        children {
           id
           content
           createdAt
@@ -173,8 +173,8 @@
       likeComment(input: $input) {
         id
         likeCount
-        likedByMe
-        likedByPostedUser
+        liked
+        likedByPostUser
       }
     }
   `);
@@ -184,8 +184,8 @@
       unlikeComment(input: $input) {
         id
         likeCount
-        likedByMe
-        likedByPostedUser
+        liked
+        likedByPostUser
       }
     }
   `);
@@ -250,7 +250,7 @@
           {:else}
             <p class={flex({ align: 'center', gap: '4px', wrap: 'wrap', fontSize: '14px', fontWeight: 'medium' })}>
               {$postComment.profile.name}
-              {#if $postComment.isPurchasedUser}
+              {#if $postComment.purchased}
                 <span class={css({ fontSize: '12px', color: 'teal.500' })}>구매자</span>
               {/if}
               {#if $postComment.visibility === 'PRIVATE'}
@@ -338,7 +338,7 @@
                 })}
                 type="button"
                 on:click={async () => {
-                  if ($postComment.likedByMe) {
+                  if ($postComment.liked) {
                     await unlikeComment({ commentId: $postComment.id });
                     mixpanel.track('comment:unlike', { postId: $query.post.id, commentId: $postComment.id });
                   } else {
@@ -347,7 +347,7 @@
                   }
                 }}
               >
-                {#if $postComment.likedByMe}
+                {#if $postComment.liked}
                   <Icon style={css.raw({ color: 'teal.500' })} icon={IconHeartFilled} />
                 {:else}
                   <Icon style={css.raw({ color: 'teal.500' })} icon={IconHeart} />
@@ -368,7 +368,7 @@
                 </Button>
               {/if}
 
-              {#if $postComment.likedByPostedUser}
+              {#if $postComment.likedByPostUser}
                 <div
                   class={css({
                     position: 'relative',
@@ -400,7 +400,7 @@
             </div>
           {/if}
 
-          {#if !parentId && $postComment.childComments.length > 0}
+          {#if !parentId && $postComment.children.length > 0}
             <button
               class={flex({
                 align: 'center',
@@ -416,7 +416,7 @@
                 replyInputOpen = repliesOpen ? true : false;
               }}
             >
-              {$postComment.childComments.length}개의 답글
+              {$postComment.children.length}개의 답글
               {#if repliesOpen}
                 <Icon style={css.raw({ color: 'gray.500' })} icon={IconCaretUpFilled} size={12} />
               {:else}
@@ -430,7 +430,7 @@
   {/if}
 
   {#if repliesOpen}
-    {#each $postComment.childComments as reply (reply)}
+    {#each $postComment.children as reply (reply)}
       <svelte:self $postComment={reply} {$query} parentId={$postComment.id} />
     {/each}
   {/if}

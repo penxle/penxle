@@ -27,7 +27,7 @@
           id
         }
 
-        bookmarks {
+        bookmarkGroups {
           id
           postCount
 
@@ -129,12 +129,12 @@
       </div>
     </div>
 
-    {#if $query.me.bookmarks.length === 0 || $query.me.bookmarks[0].postCount === 0}
+    {#if $query.me.bookmarkGroups.length === 0 || $query.me.bookmarkGroups[0].postCount === 0}
       <p class={css({ paddingY: '8px', fontWeight: 'medium', color: 'gray.500', textAlign: 'center' })}>
         아직 북마크가 없어요
       </p>
     {:else}
-      {#each $query.me.bookmarks as bookmark (bookmark.id)}
+      {#each $query.me.bookmarkGroups as bookmark (bookmark.id)}
         <Link style={css.raw({ display: 'inline-block' })} href="/me/cabinets/bookmark">
           {#if bookmark.thumbnails.length > 0}
             <GridImage

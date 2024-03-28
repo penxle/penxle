@@ -35,7 +35,7 @@ export const UpdateSpaceSchema = z.object({
   name: spaceName.optional(),
   slug: SpaceSlugSchema.optional(),
   description: z.string().max(200, '스페이스 소개는 200자를 넘을 수 없어요').optional(),
-  externalLinks: z.array(z.string().url()).optional(),
+  // externalLinks: z.array(z.string().url()).optional(),
   isPublic: z.boolean().optional(),
 });
 

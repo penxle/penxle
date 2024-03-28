@@ -1,9 +1,3 @@
-input AcceptSpaceMemberInvitationInput {
-  invitationId: ID!
-  profileAvatarId: ID
-  profileName: String
-}
-
 enum AuthScope {
   STAFF
   USER
@@ -18,7 +12,7 @@ type BookmarkGroup {
   id: ID!
   name: String!
   postCount: Int!
-  posts: [BookmarkGroupPost!]!
+  posts: [Post!]!
   thumbnails: [Image!]!
 }
 
@@ -33,8 +27,8 @@ input BookmarkPostInput {
   postId: ID!
 }
 
-type CommentNotification implements UserNotification {
-  actor: Profile!
+type CommentNotification implements IUserNotification {
+  actor: Profile
   category: UserNotificationCategory!
   comment: PostComment!
   createdAt: DateTime!
@@ -43,7 +37,6 @@ type CommentNotification implements UserNotification {
   parentComment: PostComment
   post: Post!
   state: UserNotificationState!
-  user: User!
 }
 
 enum CommentOrderByKind {
@@ -100,12 +93,6 @@ input CreateSpaceInput {
   slug: String!
 }
 
-input CreateSpaceMemberInvitationInput {
-  email: String!
-  role: SpaceMemberRole!
-  spaceId: ID!
-}
-
 input CreateUserInput {
   marketingConsent: Boolean!
   name: String!
@@ -113,9 +100,6 @@ input CreateUserInput {
   token: String!
 }
 
-"""
-A date-time string at UTC, such as 2007-12-03T10:15:30Z, compliant with the `date-time` format outlined in section 5.6 of the RFC 3339 profile of the ISO 8601 standard for representation of dates and times using the Gregorian calendar.
-"""
 scalar DateTime
 
 input DeleteCommentInput {
@@ -132,7 +116,7 @@ input DeletePostReactionInput {
 }
 
 input DeleteSpaceCollectionInput {
-  collectionId: ID!
+  spaceCollectionId: ID!
 }
 
 input DeleteSpaceInput {
@@ -198,8 +182,13 @@ input GeneratePostShareImageInput {
   title: String!
 }
 
-input IgnoreSpaceMemberInvitationInput {
-  invitationId: ID!
+interface IUserNotification {
+  actor: Profile
+  category: UserNotificationCategory!
+  createdAt: DateTime!
+  data: JSON!
+  id: ID!
+  state: UserNotificationState!
 }
 
 type Image {
@@ -235,10 +224,6 @@ The `JSON` scalar type represents JSON values as specified by [ECMA-404](http://
 """
 scalar JSON
 
-input LeaveSpaceInput {
-  spaceId: ID!
-}
-
 input LikeCommentInput {
   commentId: ID!
 }
@@ -256,7 +241,6 @@ input MarkNotificationAsReadInput {
 }
 
 type Mutation {
-  acceptSpaceMemberInvitation(input: AcceptSpaceMemberInvitationInput!): SpaceMemberInvitation!
   blockMasquerade(input: BlockMasqueradeInput!): Space!
   bookmarkPost(input: BookmarkPostInput!): Post!
   createComment(input: CreateCommentInput!): PostComment!
@@ -264,7 +248,6 @@ type Mutation {
   createPostReaction(input: CreatePostReactionInput!): Post!
   createSpace(input: CreateSpaceInput!): Space!
   createSpaceCollection(input: CreateSpaceCollectionInput!): SpaceCollection!
-  createSpaceMemberInvitation(input: CreateSpaceMemberInvitationInput!): SpaceMemberInvitation!
   createUser(input: CreateUserInput!): User!
   deleteComment(input: DeleteCommentInput!): PostComment!
   deletePost(input: DeletePostInput!): Post!
@@ -280,16 +263,14 @@ type Mutation {
   followSpace(input: FollowSpaceInput!): Space!
   followTag(input: FollowTagInput!): Tag!
   generatePostShareImage(input: GeneratePostShareImageInput!): String!
-  ignoreSpaceMemberInvitation(input: IgnoreSpaceMemberInvitationInput!): SpaceMemberInvitation!
   instantSettleRevenue: User!
   issueUserEmailAuthorizationUrl(input: IssueUserEmailAuthorizationUrlInput!): IssueUserEmailAuthorizationUrlResult!
   issueUserSingleSignOnAuthorizationUrl(input: IssueUserSingleSignOnAuthorizationUrlInput!): IssueUserSingleSignOnAuthorizationUrlResult!
-  leaveSpace(input: LeaveSpaceInput!): SpaceMember!
   likeComment(input: LikeCommentInput!): PostComment!
   likePost(input: LikePostInput!): Post!
   loginUser(input: LoginUserInput!): UserEmailVerification!
   logoutUser: Void
-  markNotificationAsRead(input: MarkNotificationAsReadInput!): UserNotification!
+  markNotificationAsRead(input: MarkNotificationAsReadInput!): IUserNotification!
   muteSpace(input: MuteSpaceInput!): Space!
   muteTag(input: MuteTagInput!): Tag!
   pinComment(input: PinCommentInput!): PostComment!
@@ -298,12 +279,7 @@ type Mutation {
   publishPost(input: PublishPostInput!): Post!
   purchasePoint(input: PurchasePointInput!): PointPurchase!
   purchasePost(input: PurchasePostInput!): Post!
-  reindexSearch: Void
-  removeSpaceMember(input: RemoveSpaceMemberInput!): SpaceMember
-  reorderSpaceCollection(input: ReorderSpaceCollectionInput!): SpaceCollection! @deprecated(reason: "Use setSpaceCollectionPost instead")
   revisePost(input: RevisePostInput!): Post!
-  reviseTagWiki(input: ReviseTagWikiInput!): TagWiki!
-  setParentTag(input: SetParentTagInput!): Tag!
   setSpaceCollectionPosts(input: SetSpaceCollectionPostsInput!): SpaceCollection!
   unblockMasquerade(input: UnblockMasqueradeInput!): Space!
   unbookmarkPost(input: UnbookmarkPostInput!): Post!
@@ -317,15 +293,12 @@ type Mutation {
   unmuteSpace(input: UnmuteSpaceInput!): Space!
   unmuteTag(input: UnmuteTagInput!): Tag!
   unpinComment(input: UnpinCommentInput!): PostComment!
-  unsetParentTag(input: UnsetParentTagInput!): Tag!
   updateComment(input: UpdateCommentInput!): PostComment!
-  updatePostCollection(input: UpdatePostCollectionInput!): Post! @deprecated(reason: "Use setSpaceCollectionPost instead")
   updatePostOptions(input: UpdatePostOptionsInput!): Post!
   updatePostTags(input: UpdatePostTagsInput!): Post!
   updatePostView(input: UpdatePostViewInput!): Post!
   updateSpace(input: UpdateSpaceInput!): Space!
   updateSpaceCollection(input: UpdateSpaceCollectionInput!): SpaceCollection!
-  updateSpaceMemberRole(input: UpdateSpaceMemberRoleInput!): SpaceMember!
   updateSpaceProfile(input: UpdateSpaceProfileInput!): SpaceMember!
   updateUserContentFilterPreference(input: UpdateUserContentFilterPreferenceInput!): User!
   updateUserEmail(input: UpdateUserEmailInput!): Void
@@ -427,7 +400,7 @@ type Post {
   publishedAt: DateTime
   publishedRevision: PostRevision
   purchasedAt: DateTime
-  purchasedRevision: PostRevision @deprecated(reason: "Use PostPurchase.revision instead")
+  purchasedRevision: PostRevision
   reactionCount: Int!
   reactions: [PostReaction!]!
   receiveFeedback: Boolean!
@@ -460,18 +433,18 @@ enum PostCategory {
 }
 
 type PostComment {
-  childComments: [PostComment!]!
+  children: [PostComment!]!
   content: String!
   createdAt: DateTime!
   id: ID!
-  isPurchasedUser: Boolean!
   likeCount: Int!
-  likedByMe: Boolean!
-  likedByPostedUser: Boolean!
+  liked: Boolean!
+  likedByPostUser: Boolean!
   masquerade: SpaceMasquerade
   parent: PostComment
   pinned: Boolean!
   profile: Profile!
+  purchased: Boolean!
   state: PostCommentState!
   updatedAt: DateTime
   visibility: PostCommentVisibility!
@@ -524,6 +497,11 @@ type PostRevision {
   updatedAt: DateTime!
 }
 
+enum PostRevisionContentKind {
+  ARTICLE
+  GALLERY
+}
+
 enum PostRevisionKind {
   ARCHIVED
   AUTO_SAVE
@@ -557,6 +535,11 @@ enum PostVisibility {
   PUBLIC
   SPACE
   UNLISTED
+}
+
+enum PreferenceType {
+  FAVORITE
+  MUTE
 }
 
 type PrepareFileUploadResult {
@@ -602,15 +585,14 @@ input PublishPostInput {
   visibility: PostVisibility!
 }
 
-type PurchaseNotification implements UserNotification {
-  actor: Profile!
+type PurchaseNotification implements IUserNotification {
+  actor: Profile
   category: UserNotificationCategory!
   createdAt: DateTime!
   data: JSON!
   id: ID!
   post: Post!
   state: UserNotificationState!
-  user: User!
 }
 
 input PurchasePointInput {
@@ -627,42 +609,24 @@ input PurchasePostInput {
 type Query {
   auth(scope: AuthScope!): Void
   authLayoutBackgroundImage: Image
-  autoCompleteTags(kind: PostTagKind!, query: String!): [Tag!]!
+  draftPost(permalink: String!): Post!
   flash: Flash
   hello(name: String!): String!
   me: User
   pointPurchase(paymentKey: String!): PointPurchase!
   post(permalink: String!): Post!
   provisionedUser(token: String!): ProvisionedUser!
-  randomAvatars: [String!]!
-  randomIcons: [String!]!
   recentFeed: [Post!]!
-  recentlyCreatedTags: [Tag!]!
-  recentlyPublishedSpaces: [Space!]!
-  recentlyPurchasedPosts: [Post!]!
   recentlyUsedTags: [Tag!]!
   recommendFeed: [Post!]!
-  recommendedTags: [Tag!]!
   revenueWithdrawal(id: String!): RevenueWithdrawal!
-  sampleImage: Image!
-  sampleImages: [Image!]!
   searchPosts(adultFilter: Boolean, excludeTags: [String!]! = [], includeTags: [String!]! = [], orderBy: SearchOrderByKind! = ACCURACY, page: Int! = 1, query: String!): SearchResult!
   searchSpaces(query: String!): [Space!]!
   searchTags(query: String!): [Tag!]!
   space(slug: String!): Space!
-  spaceFeed(dateBefore: String): [Post!]!
+  spaceFeed: [Post!]!
   tag(name: String!): Tag!
-  tagFeed(dateBefore: String): [Post!]!
-}
-
-input RemoveSpaceMemberInput {
-  spaceMemberId: ID!
-}
-
-input ReorderSpaceCollectionInput {
-  collectionId: ID!
-  order: Int!
-  postId: ID!
+  tagFeed: [Post!]!
 }
 
 type Revenue {
@@ -721,11 +685,6 @@ input RevisePostInput {
   title: String
 }
 
-input ReviseTagWikiInput {
-  content: String!
-  tagId: ID!
-}
-
 enum SearchOrderByKind {
   ACCURACY
   LATEST
@@ -736,14 +695,9 @@ type SearchResult {
   posts: [Post!]!
 }
 
-input SetParentTagInput {
-  parentTagId: ID!
-  tagId: ID!
-}
-
 input SetSpaceCollectionPostsInput {
-  collectionId: ID!
   postIds: [ID!]!
+  spaceCollectionId: ID!
 }
 
 type Space {
@@ -752,12 +706,10 @@ type Space {
   commentProfile: Profile
   createdAt: DateTime!
   description: String
-  externalLinks: [SpaceExternalLink!]!
   followed: Boolean!
   followerCount: Int!
   icon: Image!
   id: ID!
-  invitations: [SpaceMemberInvitation!]!
   meAsMember: SpaceMember
   members: [SpaceMember!]!
   muted: Boolean!
@@ -789,11 +741,6 @@ enum SpaceCollectionState {
   INACTIVE
 }
 
-type SpaceExternalLink {
-  id: ID!
-  url: String!
-}
-
 type SpaceMasquerade {
   blocked: Boolean!
   blockedAt: DateTime
@@ -803,19 +750,9 @@ type SpaceMasquerade {
 
 type SpaceMember {
   createdAt: DateTime!
-  email: String!
   id: ID!
   profile: Profile!
   role: SpaceMemberRole!
-}
-
-type SpaceMemberInvitation {
-  createdAt: DateTime!
-  id: ID!
-  receivedEmail: String!
-  respondedAt: DateTime
-  space: Space!
-  state: SpaceMemberInvitationState!
 }
 
 enum SpaceMemberInvitationState {
@@ -844,15 +781,14 @@ enum SpaceVisibility {
   PUBLIC
 }
 
-type SubscribeNotification implements UserNotification {
-  actor: Profile!
+type SubscribeNotification implements IUserNotification {
+  actor: Profile
   category: UserNotificationCategory!
   createdAt: DateTime!
   data: JSON!
   id: ID!
   space: Space!
   state: UserNotificationState!
-  user: User!
 }
 
 type Tag {
@@ -860,10 +796,8 @@ type Tag {
   id: ID!
   muted: Boolean!
   name: String!
-  parents: [Tag!]!
   posts: [Post!]!
   usageCount: TagUsageCount!
-  wiki: TagWiki
 }
 
 input TagInput {
@@ -879,24 +813,13 @@ type TagUsageCount {
   TRIGGER: Int!
 }
 
-type TagWiki {
-  id: ID!
-  lastRevision: TagWikiRevision!
-}
-
-type TagWikiRevision {
-  content: String!
-  createdAt: DateTime!
-  id: ID!
-}
-
 input UnblockMasqueradeInput {
   masqueradeId: ID!
   spaceId: ID!
 }
 
 input UnbookmarkPostInput {
-  bookmarkId: ID!
+  bookmarkGroupId: ID!
   postId: ID!
 }
 
@@ -941,19 +864,9 @@ input UnpinCommentInput {
   commentId: ID!
 }
 
-input UnsetParentTagInput {
-  parentTagId: ID!
-  tagId: ID!
-}
-
 input UpdateCommentInput {
   commentId: ID!
   content: String!
-}
-
-input UpdatePostCollectionInput {
-  collectionId: ID
-  postId: ID!
 }
 
 input UpdatePostOptionsInput {
@@ -977,24 +890,18 @@ input UpdatePostViewInput {
 }
 
 input UpdateSpaceCollectionInput {
-  collectionId: ID!
   name: String!
+  spaceCollectionId: ID!
   thumbnailId: ID
 }
 
 input UpdateSpaceInput {
   description: String
-  externalLinks: [String!]
   iconId: ID
   isPublic: Boolean
   name: String
   slug: String
   spaceId: ID!
-}
-
-input UpdateSpaceMemberRoleInput {
-  role: SpaceMemberRole!
-  spaceMemberId: ID!
 }
 
 input UpdateSpaceProfileInput {
@@ -1029,7 +936,7 @@ input UpdateUserProfileInput {
 
 type User {
   allowedAgeRating: [PostAgeRating!]!
-  bookmarks: [BookmarkGroup!]!
+  bookmarkGroups: [BookmarkGroup!]!
   contentFilterPreferences: [UserContentFilterPreference!]!
   email: String!
   emojiReactedPosts: [Post!]!
@@ -1043,14 +950,13 @@ type User {
   mutedSpaces: [Space!]!
   mutedTags: [Tag!]!
   notificationPreferences: [UserNotificationPreference!]!
-  notifications(category: UserNotificationCategory, unreadOnly: Boolean! = false): [UserNotification!]!
+  notifications(category: UserNotificationCategory, unreadOnly: Boolean! = false): [IUserNotification!]!
   personalIdentity: UserPersonalIdentity
   point(kind: PointKind): Int!
   points: [PointTransaction!]!
   posts(state: PostState! = PUBLISHED): [Post!]!
   profile: Profile!
   purchasedPosts: [Post!]!
-  receivedSpaceMemberInvitations(state: SpaceMemberInvitationState): [SpaceMemberInvitation!]!
   recentlyViewedPosts: [Post!]!
   revenue(withdrawable: Boolean! = false): Int!
   revenueWithdrawals: [RevenueWithdrawal!]!
@@ -1091,16 +997,6 @@ type UserEventEnrollment {
 type UserMarketingConsent {
   createdAt: DateTime!
   id: ID!
-}
-
-interface UserNotification {
-  actor: Profile!
-  category: UserNotificationCategory!
-  createdAt: DateTime!
-  data: JSON!
-  id: ID!
-  state: UserNotificationState!
-  user: User!
 }
 
 enum UserNotificationCategory {

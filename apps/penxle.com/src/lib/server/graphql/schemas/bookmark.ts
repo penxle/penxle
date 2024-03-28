@@ -1,241 +1,232 @@
+import { and, count, desc, eq } from 'drizzle-orm';
 import { NotFoundError } from '$lib/errors';
-import { createId } from '$lib/utils';
-import { defineSchema } from '../builder';
+import {
+  BookmarkGroupPosts,
+  BookmarkGroups,
+  database,
+  Images,
+  Posts,
+  SpaceMembers,
+  Spaces,
+} from '$lib/server/database';
+import { builder } from '../builder';
+import { createObjectRef } from '../utils';
+import { Image } from './image';
+import { Post } from './post';
 
-export const bookmarkSchema = defineSchema((builder) => {
-  /**
-   * * Types
-   */
+/**
+ * * Types
+ */
 
-  builder.prismaObject('BookmarkGroup', {
-    fields: (t) => ({
-      id: t.exposeID('id'),
-      name: t.exposeString('name'),
-      posts: t.relation('posts', {
-        query: {
-          where: {
-            post: { state: 'PUBLISHED' },
-          },
-        },
-      }),
+export const BookmarkGroup = createObjectRef('BookmarkGroup', BookmarkGroups);
+BookmarkGroup.implement({
+  fields: (t) => ({
+    id: t.exposeID('id'),
+    name: t.exposeString('name'),
 
-      postCount: t.relationCount('posts', {
-        where: {
-          post: {
-            state: 'PUBLISHED',
-            space: {
-              state: 'ACTIVE',
-            },
-          },
-        },
-      }),
+    posts: t.field({
+      type: [Post],
+      resolve: async (bookmarkGroup) => {
+        const posts = await database
+          .select({ id: Posts.id })
+          .from(Posts)
+          .innerJoin(BookmarkGroupPosts, eq(Posts.id, BookmarkGroupPosts.postId))
+          .innerJoin(Spaces, eq(Posts.spaceId, Spaces.id))
+          .where(
+            and(
+              eq(BookmarkGroupPosts.bookmarkGroupId, bookmarkGroup.id),
+              eq(Posts.state, 'PUBLISHED'),
+              eq(Spaces.state, 'ACTIVE'),
+            ),
+          )
+          .orderBy(desc(BookmarkGroupPosts.createdAt));
 
-      thumbnails: t.prismaField({
-        type: ['Image'],
-        resolve: async (query, bookmarkGroup, _, { db }) => {
-          return db.image.findMany({
-            ...query,
-            where: {
-              postsUsingThisAsThumbnail: {
-                some: {
-                  state: 'PUBLISHED',
-                  space: { state: 'ACTIVE' },
-                  bookmarks: {
-                    some: {
-                      bookmarkGroupId: bookmarkGroup.id,
-                    },
-                  },
-                },
-              },
-            },
-
-            take: 4,
-          });
-        },
-      }),
+        return posts.map((post) => post.id);
+      },
     }),
-  });
 
-  builder.prismaObject('BookmarkGroupPost', {
-    fields: (t) => ({
-      id: t.exposeID('id'),
-      post: t.relation('post'),
-      bookmarkGroup: t.relation('bookmarkGroup'),
-      createdAt: t.expose('createdAt', { type: 'DateTime' }),
+    postCount: t.int({
+      resolve: async (bookmarkGroup) => {
+        const [{ value }] = await database
+          .select({ value: count() })
+          .from(Posts)
+          .innerJoin(BookmarkGroupPosts, eq(Posts.id, BookmarkGroupPosts.postId))
+          .innerJoin(Spaces, eq(Posts.spaceId, Spaces.id))
+          .where(
+            and(
+              eq(BookmarkGroupPosts.bookmarkGroupId, bookmarkGroup.id),
+              eq(Posts.state, 'PUBLISHED'),
+              eq(Spaces.state, 'ACTIVE'),
+            ),
+          );
+
+        return value;
+      },
     }),
-  });
 
-  /**
-   * * Inputs
-   */
+    thumbnails: t.field({
+      type: [Image],
+      resolve: async (bookmarkGroup) => {
+        const sq = database
+          .select({ thumbnailId: Posts.thumbnailId, bookmarkedAt: BookmarkGroupPosts.createdAt })
+          .from(Posts)
+          .innerJoin(BookmarkGroupPosts, eq(Posts.id, BookmarkGroupPosts.postId))
+          .innerJoin(Spaces, eq(Posts.spaceId, Spaces.id))
+          .where(
+            and(
+              eq(BookmarkGroupPosts.bookmarkGroupId, bookmarkGroup.id),
+              eq(Posts.state, 'PUBLISHED'),
+              eq(Spaces.state, 'ACTIVE'),
+            ),
+          )
+          .orderBy(desc(BookmarkGroupPosts.createdAt))
+          .limit(4)
+          .as('sq');
 
-  // const CreateBookmarkInput = builder.inputType('CreateBookmarkInput', {
-  //   fields: (t) => ({
-  //     name: t.string(),
-  //   }),
-  // });
+        const images = await database
+          .select({ id: Images.id })
+          .from(Images)
+          .innerJoin(sq, eq(Images.id, sq.thumbnailId))
+          .orderBy(desc(sq.bookmarkedAt));
 
-  // const DeleteBookmarkInput = builder.inputType('DeleteBookmarkInput', {
-  //   fields: (t) => ({
-  //     bookmarkId: t.id(),
-  //   }),
-  // });
-
-  // const UpdateBookmarkInput = builder.inputType('UpdateBookmarkInput', {
-  //   fields: (t) => ({
-  //     bookmarkId: t.id(),
-  //     name: t.string(),
-  //   }),
-  // });
-
-  const BookmarkPostInput = builder.inputType('BookmarkPostInput', {
-    fields: (t) => ({
-      // bookmarkId: t.id(),
-      postId: t.id(),
+        return images.map((image) => image.id);
+      },
     }),
-  });
+  }),
+});
 
-  const UnbookmarkPostInput = builder.inputType('UnbookmarkPostInput', {
-    fields: (t) => ({
-      bookmarkId: t.id(),
-      postId: t.id(),
-    }),
-  });
+export const BookmarkGroupPost = createObjectRef('BookmarkGroupPost', BookmarkGroupPosts);
+BookmarkGroupPost.implement({
+  fields: (t) => ({
+    id: t.exposeID('id'),
+    createdAt: t.expose('createdAt', { type: 'DateTime' }),
 
-  /**
-   * * Mutations
-   */
+    post: t.field({ type: Post, resolve: (bookmarkPost) => bookmarkPost.postId }),
+    bookmarkGroup: t.field({ type: BookmarkGroup, resolve: (bookmarkPost) => bookmarkPost.bookmarkGroupId }),
+  }),
+});
 
-  builder.mutationFields((t) => ({
-    // createBookmark: t.withAuth({ user: true }).prismaField({
-    //   type: 'BookmarkGroup',
-    //   args: { input: t.arg({ type: CreateBookmarkInput }) },
-    //   resolve: async (query, _, { input }, { db, ...context }) => {
-    //     return db.bookmarkGroup.create({
-    //       ...query,
-    //       data: {
-    //         id: createId(),
-    //         name: input.name,
-    //         user: { connect: { id: context.session.userId } },
-    //       },
-    //     });
-    //   },
-    // }),
+/**
+ * * Inputs
+ */
 
-    // deleteBookmark: t.withAuth({ user: true }).field({
-    //   type: 'Void',
-    //   args: { input: t.arg({ type: DeleteBookmarkInput }) },
-    //   resolve: async (_, { input }, { db, ...context }) => {
-    //     await db.bookmarkGroup.delete({
-    //       where: {
-    //         id: input.bookmarkId,
-    //         userId: context.session.userId,
-    //       },
-    //     });
-    //   },
-    // }),
+// const CreateBookmarkInput = builder.inputType('CreateBookmarkInput', {
+//   fields: (t) => ({
+//     name: t.string(),
+//   }),
+// });
 
-    // updateBookmark: t.withAuth({ user: true }).prismaField({
-    //   type: 'BookmarkGroup',
-    //   args: { input: t.arg({ type: UpdateBookmarkInput }) },
-    //   resolve: async (query, _, { input }, { db, ...context }) => {
-    //     return db.bookmarkGroup.update({
-    //       ...query,
-    //       where: {
-    //         id: input.bookmarkId,
-    //         userId: context.session.userId,
-    //       },
-    //       data: {
-    //         name: input.name,
-    //       },
-    //     });
-    //   },
-    // }),
+// const DeleteBookmarkInput = builder.inputType('DeleteBookmarkInput', {
+//   fields: (t) => ({
+//     bookmarkId: t.id(),
+//   }),
+// });
 
-    bookmarkPost: t.withAuth({ user: true }).prismaField({
-      type: 'Post',
-      args: { input: t.arg({ type: BookmarkPostInput }) },
-      resolve: async (query, _, { input }, { db, ...context }) => {
-        const post = await db.post.findUnique({
-          where: {
-            id: input.postId,
-            state: 'PUBLISHED',
-            space: { state: 'ACTIVE' },
-          },
-        });
+// const UpdateBookmarkInput = builder.inputType('UpdateBookmarkInput', {
+//   fields: (t) => ({
+//     bookmarkId: t.id(),
+//     name: t.string(),
+//   }),
+// });
 
-        if (!post || !post.spaceId) {
+const BookmarkPostInput = builder.inputType('BookmarkPostInput', {
+  fields: (t) => ({
+    // bookmarkId: t.id(),
+    postId: t.id(),
+  }),
+});
+
+const UnbookmarkPostInput = builder.inputType('UnbookmarkPostInput', {
+  fields: (t) => ({
+    bookmarkGroupId: t.id(),
+    postId: t.id(),
+  }),
+});
+
+/**
+ * * Mutations
+ */
+
+builder.mutationFields((t) => ({
+  bookmarkPost: t.withAuth({ user: true }).field({
+    type: Post,
+    args: { input: t.arg({ type: BookmarkPostInput }) },
+    resolve: async (_, { input }, context) => {
+      const posts = await database
+        .select({ spaceId: Posts.spaceId, visibility: Posts.visibility })
+        .from(Posts)
+        .innerJoin(Spaces, eq(Posts.spaceId, Spaces.id))
+        .where(and(eq(Posts.id, input.postId), eq(Posts.state, 'PUBLISHED'), eq(Spaces.state, 'ACTIVE')));
+
+      if (posts.length === 0) {
+        throw new NotFoundError();
+      }
+
+      const [post] = posts;
+
+      if (post.visibility === 'SPACE') {
+        const meAsMembers = await database
+          .select({ id: SpaceMembers.id })
+          .from(SpaceMembers)
+          .where(
+            and(
+              // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+              eq(SpaceMembers.spaceId, post.spaceId!),
+              eq(SpaceMembers.userId, context.session.userId),
+              eq(SpaceMembers.state, 'ACTIVE'),
+            ),
+          );
+
+        if (meAsMembers.length === 0) {
           throw new NotFoundError();
         }
+      }
 
-        if (post.visibility === 'SPACE') {
-          const meAsMember = await db.spaceMember.existsUnique({
-            where: {
-              spaceId_userId: {
-                spaceId: post.spaceId,
-                userId: context.session.userId,
-              },
-              state: 'ACTIVE',
-            },
-          });
+      let defaultBookmarkGroups = await database
+        .select({ id: BookmarkGroups.id })
+        .from(BookmarkGroups)
+        .where(eq(BookmarkGroups.userId, context.session.userId))
+        .limit(1);
 
-          if (!meAsMember) {
-            throw new NotFoundError();
-          }
-        }
+      if (defaultBookmarkGroups.length === 0) {
+        defaultBookmarkGroups = await database
+          .insert(BookmarkGroups)
+          .values({ userId: context.session.userId, name: '북마크' })
+          .returning({ id: BookmarkGroups.id });
+      }
 
-        const defaultBookmarkGroup =
-          (await db.bookmarkGroup.findFirst({
-            where: {
-              userId: context.session.userId,
-            },
-          })) ??
-          (await db.bookmarkGroup.create({
-            data: {
-              id: createId(),
-              name: '북마크',
-              userId: context.session.userId,
-            },
-          }));
+      const [defaultBookmarkGroup] = defaultBookmarkGroups;
 
-        const bookmarkGroupPost = await db.bookmarkGroupPost.upsert({
-          include: { post: query },
-          where: {
-            bookmarkGroupId_postId: {
-              bookmarkGroupId: defaultBookmarkGroup.id,
-              postId: input.postId,
-            },
-            bookmarkGroup: { userId: context.session.userId },
-          },
-          create: {
-            id: createId(),
-            bookmarkGroupId: defaultBookmarkGroup.id,
-            postId: input.postId,
-          },
-          update: {},
-        });
+      await database
+        .insert(BookmarkGroupPosts)
+        .values({ bookmarkGroupId: defaultBookmarkGroup.id, postId: input.postId })
+        .onConflictDoNothing();
 
-        return bookmarkGroupPost.post;
-      },
-    }),
+      return input.postId;
+    },
+  }),
 
-    unbookmarkPost: t.withAuth({ user: true }).prismaField({
-      type: 'Post',
-      args: { input: t.arg({ type: UnbookmarkPostInput }) },
-      resolve: async (query, _, { input }, { db, ...context }) => {
-        const bookmarkPost = await db.bookmarkGroupPost.delete({
-          include: { post: query },
-          where: {
-            bookmarkGroupId_postId: {
-              bookmarkGroupId: input.bookmarkId,
-              postId: input.postId,
-            },
-            bookmarkGroup: { userId: context.session.userId },
-          },
-        });
+  unbookmarkPost: t.withAuth({ user: true }).field({
+    type: Post,
+    args: { input: t.arg({ type: UnbookmarkPostInput }) },
+    resolve: async (_, { input }, context) => {
+      const bookmarkGroups = database
+        .select({ userId: BookmarkGroups.id })
+        .from(BookmarkGroups)
+        .where(eq(BookmarkGroups.id, input.bookmarkGroupId))
+        .as('sq');
 
-        return bookmarkPost.post;
-      },
-    }),
-  }));
-});
+      await database
+        .delete(BookmarkGroupPosts)
+        .where(
+          and(
+            eq(BookmarkGroupPosts.bookmarkGroupId, input.bookmarkGroupId),
+            eq(BookmarkGroupPosts.postId, input.postId),
+            eq(bookmarkGroups.userId, context.session.userId),
+          ),
+        );
+
+      return input.postId;
+    },
+  }),
+}));

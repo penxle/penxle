@@ -1,13 +1,10 @@
-import * as enums from '$lib/server/enums';
-import { PrismaEnums } from '$prisma';
-import { defineSchema } from '../builder';
+import * as enums from '$lib/enums';
+import { builder } from '../builder';
 
-export const enumsSchema = defineSchema((builder) => {
-  /**
-   * * Enums
-   */
+/**
+ * * Enums
+ */
 
-  for (const [name, e] of Object.entries({ ...PrismaEnums, ...enums })) {
-    builder.enumType(e, { name });
-  }
-});
+for (const [name, e] of Object.entries(enums)) {
+  builder.enumType(e, { name });
+}

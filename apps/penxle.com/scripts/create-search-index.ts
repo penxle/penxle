@@ -1,6 +1,4 @@
 /* eslint-disable @typescript-eslint/no-non-null-assertion */
-// import { prismaClient } from '$lib/server/database';
-// import { indexPost, indexSpace } from '$lib/server/utils';
 import { Client } from '@elastic/elasticsearch';
 import arg from 'arg';
 import type { IndicesCreateRequest } from '@elastic/elasticsearch/lib/api/types';
@@ -23,7 +21,6 @@ const args = arg({
 });
 
 const version = Date.now();
-// const BATCH_SIZE = 100;
 const env = args['--production'] ? 'prod' : 'dev';
 
 const indexData: Record<string, Omit<IndicesCreateRequest, 'index'>> = {
@@ -180,36 +177,3 @@ for (const indexName of Object.keys(indexData)) {
     await createIndex(indexName, indexData[indexName]);
   }
 }
-
-// for (let i = 0; ; i++) {
-//   const posts = await prismaClient.post.findMany({
-//     skip: i * BATCH_SIZE,
-//     take: BATCH_SIZE,
-//     include: {
-//       tags: {
-//         include: {
-//           tag: true,
-//         },
-//       },
-//       publishedRevision: true,
-//       space: true,
-//     },
-//   });
-
-//   if (posts.length === 0) break;
-//   for (const post of posts) indexPost(post);
-
-//   console.log(`Reindexed ${i * BATCH_SIZE + posts.length} posts.`);
-// }
-
-// for (let i = 0; ; i++) {
-//   const spaces = await prismaClient.space.findMany({
-//     skip: i * BATCH_SIZE,
-//     take: BATCH_SIZE,
-//   });
-
-//   if (spaces.length === 0) break;
-//   for (const space of spaces) indexSpace(space);
-
-//   console.log(`Reindexed ${i * BATCH_SIZE + spaces.length} spaces.`);
-// }
