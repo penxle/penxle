@@ -1,5 +1,5 @@
 <script lang="ts">
-  import LogoFloating from '$assets/branding/logo-floating.svg?component';
+  import Logo from '$assets/branding/logo.svg?component';
   import { Helmet, Link } from '$lib/components';
   import { css } from '$styled-system/css';
   import { center } from '$styled-system/patterns';
@@ -8,7 +8,7 @@
 <Helmet description="펜슬은 지금 점검중이에요" title="점검중" />
 
 <div class={center({ flexDirection: 'column', flexGrow: '1', gap: '16px', marginX: 'auto', textAlign: 'center' })}>
-  <LogoFloating class={css({ size: '100px' })} />
+  <Logo class={css({ height: '50px', color: 'gray.900' })} />
 
   <h2 class={css({ fontSize: '24px', fontWeight: 'semibold' })}>펜슬은 지금 점검중이에요.</h2>
 

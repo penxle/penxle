@@ -5,6 +5,7 @@ import satori from 'satori';
 import sharp from 'sharp';
 import { rgbaToThumbHash } from 'thumbhash';
 import twemoji from 'twemoji';
+import logo from '$assets/branding/logo.svg?raw';
 import { aws } from '$lib/server/external-api';
 import { createId } from '$lib/utils';
 import { getDominantColor } from './mmcq';
@@ -158,12 +159,7 @@ export const generatePostShareImage = async ({
   color,
   background,
 }: GeneratePostFragmentImageParams) => {
-  const logo =
-    // spell-checker:disable-next-line
-    'data:image/svg+xml,%3Csvg width="71" height="12" viewBox="0 0 71 12" fill="none" xmlns="http://www.w3.org/2000/svg"%3E%3Cg opacity="0.2"%3E%3Cpath fill-rule="evenodd" clip-rule="evenodd" d="M2 0C0.895431 0 0 0.895431 0 2V10C0 11.1046 0.895431 12 2 12H10C11.1046 12 12 11.1046 12 10V2C12 0.895431 11.1046 0 10 0H2ZM3.68811 7.76833C3.9478 7.08242 4.90248 4.56084 3.73813 2C3.73813 2 5.86116 4.6302 8.98178 4.96935C8.98178 4.96935 7.95368 7.73228 8.6618 10.1094L6.87122 7.00801C7.02124 6.83258 7.05249 6.57486 6.93051 6.36357C6.77577 6.09556 6.43307 6.00374 6.16506 6.15847C5.89705 6.31321 5.80523 6.65591 5.95996 6.92392C6.0914 7.15158 6.35848 7.25211 6.60019 7.18237L7.62597 8.89638L8.42661 10.2831C7.66102 9.4998 6.06865 8.22877 3.62995 7.95019C3.61959 7.94932 3.64368 7.8857 3.68811 7.76833Z" fill="currentColor"/%3E%3Cpath d="M15.6982 11.25V0.75H19.1815C21.7397 0.75 23.3584 2.094 23.3584 4.208C23.3584 6.056 21.9565 7.82 19.1815 7.82H18.0975V11.25H15.6982ZM18.0541 5.888H19.167C20.2799 5.888 20.9592 5.216 20.9592 4.222C20.9592 3.34 20.3088 2.682 19.167 2.682H18.0541V5.888Z" fill="currentColor"/%3E%3Cpath d="M24.9855 11.25V0.75H31.793V2.724H27.3847V4.95H31.2871V6.77H27.3847V9.276H31.793V11.25H24.9855Z" fill="currentColor"/%3E%3Cpath d="M33.6941 11.25V0.75H35.9488L40.5594 7.428V0.75H42.814V11.25H40.5594L35.9488 4.684V11.25H33.6941Z" fill="currentColor"/%3E%3Cpath d="M44.3883 11.25V10.2L47.568 5.93L44.5473 1.842V0.75H46.6575L49.1578 4.25L51.4993 0.75H53.3926V1.8L50.4297 5.86L53.595 10.158V11.25H51.4848L48.8688 7.554L46.2817 11.25H44.3883Z" fill="currentColor"/%3E%3Cpath d="M55.1621 11.25V0.75H57.5613V9.276H61.8973V11.25H55.1621Z" fill="currentColor"/%3E%3Cpath d="M63.3908 11.25V0.75H70.1982V2.724H65.79V4.95H69.6924V6.77H65.79V9.276H70.1982V11.25H63.3908Z" fill="currentColor"/%3E%3C/g%3E%3C/svg%3E%0A'.replaceAll(
-      'currentColor',
-      color,
-    );
+  const _logo = `data:image/svg+xml,${encodeURIComponent(logo)}`.replace('currentColor', color);
 
   const svg = await satori(
     {
@@ -231,8 +227,7 @@ export const generatePostShareImage = async ({
           {
             type: 'img',
             props: {
-              src: logo,
-              width: 70,
+              src: _logo,
               height: 12,
               style: {
                 position: 'absolute',

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { page } from '$app/stores';
-  import Logo from '$assets/icons/logo.svg?component';
+  import Logo from '$assets/branding/logo.svg?component';
   import { Button, Helmet, Link, Modal } from '$lib/components';
   import { AppError, UnknownError } from '$lib/errors';
   import { css } from '$styled-system/css';
@@ -26,7 +26,7 @@
 >
   <nav>
     <Link href="/">
-      <Logo class={css({ size: '24px', hideBelow: 'sm' })} />
+      <Logo class={css({ height: '25px', hideBelow: 'sm', color: 'gray.900' })} />
     </Link>
   </nav>
 </header>

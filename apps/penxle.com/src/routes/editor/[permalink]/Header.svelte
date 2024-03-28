@@ -22,7 +22,6 @@
   import IconStrikethrough from '~icons/tabler/strikethrough';
   import IconUnderline from '~icons/tabler/underline';
   import Logo from '$assets/branding/logo.svg?component';
-  import Wordmark from '$assets/icons/wordmark.svg?component';
   import { fragment, graphql } from '$glitch';
   import { Icon } from '$lib/components';
   import ColorPicker from '$lib/components/ColorPicker.svelte';
@@ -190,9 +189,7 @@
     })}
   >
     <a class={flex({ align: 'center', gap: '8px' })} href="/">
-      <Logo class={css({ size: '24px', hideBelow: 'sm' })} />
-      <Wordmark class={css({ height: '21px', color: 'gray.900', hideBelow: 'sm' })} />
-
+      <Logo class={css({ height: '25px', hideBelow: 'sm', color: 'gray.900' })} />
       <Icon style={css.raw({ hideFrom: 'sm' })} icon={IconChevronLeft} size={24} />
     </a>
 

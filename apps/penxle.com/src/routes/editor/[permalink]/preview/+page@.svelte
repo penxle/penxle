@@ -3,7 +3,6 @@
   import IconDeviceMobile from '~icons/tabler/device-mobile';
   import { page } from '$app/stores';
   import Logo from '$assets/branding/logo.svg?component';
-  import Wordmark from '$assets/icons/wordmark.svg?component';
   import { graphql } from '$glitch';
   import { Helmet, Icon } from '$lib/components';
   import { css } from '$styled-system/css';
@@ -61,8 +60,7 @@
             transition: 'common',
           })}
         >
-          <Logo class={css({ size: { base: '30px', sm: '24px' } })} />
-          <Wordmark class={css({ height: '21px', hideBelow: 'sm' })} />
+          <Logo class={css({ height: '25px', color: 'gray.900' })} />
         </div>
         <div class={center({ flexGrow: '1' })}>
           <div

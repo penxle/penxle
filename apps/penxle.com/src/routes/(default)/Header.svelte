@@ -1,8 +1,7 @@
 <script lang="ts">
   import IconPlus from '~icons/tabler/plus';
   import { goto } from '$app/navigation';
-  import Logo from '$assets/icons/logo.svg?component';
-  import Wordmark from '$assets/icons/wordmark.svg?component';
+  import Logo from '$assets/branding/logo.svg?component';
   import { fragment, graphql } from '$glitch';
   import { mixpanel } from '$lib/analytics';
   import { Icon } from '$lib/components';
@@ -61,9 +60,8 @@
 >
   <nav class={css({ width: 'full', maxWidth: '1200px' })}>
     <section class={flex({ justify: 'space-between', align: 'center' })}>
-      <a class={flex({ align: 'center', gap: '7px', marginRight: '24px' })} href="/">
-        <Logo class={css({ size: { base: '14px', sm: '21px' } })} />
-        <Wordmark class={css({ height: { base: '14px', sm: '19px' } })} />
+      <a class={flex({ marginRight: '24px' })} href="/">
+        <Logo class={css({ height: '25px', color: 'gray.900' })} />
       </a>
 
       <div
