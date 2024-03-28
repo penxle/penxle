@@ -83,7 +83,7 @@
   }[currPage];
 
   $: disabled = {
-    1: !$touched.residentRegistrationNumberBack || !$touched.idCardIssuedDate,
+    1: !$user.personalIdentity || !$touched.residentRegistrationNumberBack || !$touched.idCardIssuedDate,
     2: !!$errors.bankCode,
     3: !!$errors.bankAccountNumber,
   }[currPage];
